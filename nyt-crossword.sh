@@ -37,6 +37,11 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Printer config
 PRINTER_NAME="${NYT_CROSSWORD_PRINTER:-Brother_HL_L3270CDW_series}"
+PRINTER_IP="192.168.4.54"
+
+# Relay config
+RELAY_REPO="mediajunkie/nyt-crossword"
+RELAY_PDF_PATH="docs/pending-print.pdf"
 
 # --- Flags ---
 DRY_RUN=false
@@ -89,10 +94,34 @@ die() {
   exit 1
 }
 
+printer_reachable() {
+  ping -c1 -W2 "$PRINTER_IP" &>/dev/null
+}
+
 print_pdf() {
   # Print a PDF single-sided with fit-to-page
   local file="$1"
   lpr -P "$PRINTER_NAME" -o sides=one-sided -o fit-to-page "$file"
+}
+
+relay_upload() {
+  # Upload a PDF to GitHub for the relay printer to pick up
+  local file="$1"
+  local content
+  content=$(base64 < "$file")
+
+  # Get existing SHA if file exists
+  local sha
+  sha=$(gh api "repos/$RELAY_REPO/contents/$RELAY_PDF_PATH" --jq '.sha' 2>/dev/null || echo "")
+
+  local -a args=(
+    --method PUT
+    -f "message=print-relay: $TODAY"
+    -f "content=$content"
+  )
+  [[ -n "$sha" ]] && args+=(-f "sha=$sha")
+
+  gh api "repos/$RELAY_REPO/contents/$RELAY_PDF_PATH" "${args[@]}" --silent
 }
 
 scale_up_pdf() {
@@ -241,56 +270,47 @@ else
 fi
 
 # =============================================================================
-# PRINT — four distinct cases, no global preprocessing
+# PREPARE — process PDF for printing (scaling, Sunday clue extraction, etc.)
+# Builds PRINT_FILES array: the list of PDFs to print in order.
 # =============================================================================
-if $DRY_RUN; then
-  log "[DRY RUN] Would print to $PRINTER_NAME (DOW=$DOW, pages=$PAGE_COUNT)"
-else
-  log "Printing to $PRINTER_NAME..."
+PRINT_FILES=()
 
-  if [[ "$DOW" == "7" ]]; then
-    # -----------------------------------------------------------------------
-    # SUNDAY
-    # -----------------------------------------------------------------------
-    if [[ "$PAGE_COUNT" -ge 2 ]]; then
-      # Case 3: Normal Sunday — 2 pages (grid + clues)
-      # Print full PDF, then print clues page (page 2) again for second set
-      PUZZLE_TYPE="sunday"
-      log "Normal Sunday (2+ pages)"
-      print_pdf "$PDF_FILE"
-      log "Printed full Sunday puzzle (2 pages, single-sided)"
+if [[ "$DOW" == "7" ]]; then
+  # -----------------------------------------------------------------------
+  # SUNDAY
+  # -----------------------------------------------------------------------
+  if [[ "$PAGE_COUNT" -ge 2 ]]; then
+    # Case 3: Normal Sunday — 2 pages (grid + clues)
+    # Print full PDF, then print clues page (page 2) again for second set
+    PUZZLE_TYPE="sunday"
+    log "Normal Sunday (2+ pages)"
+    PRINT_FILES+=("$PDF_FILE")
 
-      PAGE2="$DOWNLOAD_DIR/crossword-$TODAY-clues.pdf"
-      python3 -c "
+    PAGE2="$DOWNLOAD_DIR/crossword-$TODAY-clues.pdf"
+    python3 -c "
 from pypdf import PdfReader, PdfWriter
 reader = PdfReader('$PDF_FILE')
 writer = PdfWriter()
 writer.add_page(reader.pages[1])
 writer.write('$PAGE2')
 "
-      print_pdf "$PAGE2"
-      log "Printed extra clues page (page 2) — 2 sets of clues total"
+    PRINT_FILES+=("$PAGE2")
+    log "Prepared Sunday puzzle (2 pages + extra clues)"
 
-    else
-      # Case 4: Magazine Sunday — 1 page even with large_print
-      # Run magazine_sunday.py on the ORIGINAL (untouched, vector) PDF
-      # so it can extract text for clues and detect the grid visually.
-      PUZZLE_TYPE="sunday-magazine"
-      log "Magazine-page Sunday detected (1 page) — running special handler"
-      MAGAZINE_OUTPUT="$DOWNLOAD_DIR/crossword-$TODAY-magazine.pdf"
+  else
+    # Case 4: Magazine Sunday — 1 page even with large_print
+    PUZZLE_TYPE="sunday-magazine"
+    log "Magazine-page Sunday detected (1 page) — running special handler"
+    MAGAZINE_OUTPUT="$DOWNLOAD_DIR/crossword-$TODAY-magazine.pdf"
 
-      # Use || true to prevent set -e from killing the script if this fails
-      MAGAZINE_LOG=$(python3 "$SCRIPT_DIR/magazine_sunday.py" "$PDF_FILE" "$MAGAZINE_OUTPUT" 2>&1) || true
-      log "magazine_sunday.py output: $MAGAZINE_LOG"
+    MAGAZINE_LOG=$(python3 "$SCRIPT_DIR/magazine_sunday.py" "$PDF_FILE" "$MAGAZINE_OUTPUT" 2>&1) || true
+    log "magazine_sunday.py output: $MAGAZINE_LOG"
 
-      if [[ -f "$MAGAZINE_OUTPUT" ]]; then
-        print_pdf "$MAGAZINE_OUTPUT"
-        log "Printed magazine-page Sunday (grid + reformatted clues)"
+    if [[ -f "$MAGAZINE_OUTPUT" ]]; then
+      PRINT_FILES+=("$MAGAZINE_OUTPUT")
 
-        # Print ALL clue pages again for second set
-        # (clues may span 2+ pages for large puzzles)
-        MAGAZINE_CLUES="$DOWNLOAD_DIR/crossword-$TODAY-magazine-clues.pdf"
-        python3 -c "
+      MAGAZINE_CLUES="$DOWNLOAD_DIR/crossword-$TODAY-magazine-clues.pdf"
+      python3 -c "
 from pypdf import PdfReader, PdfWriter
 reader = PdfReader('$MAGAZINE_OUTPUT')
 if len(reader.pages) >= 2:
@@ -299,46 +319,71 @@ if len(reader.pages) >= 2:
         writer.add_page(reader.pages[i])
     writer.write('$MAGAZINE_CLUES')
 "
-        if [[ -f "$MAGAZINE_CLUES" ]]; then
-          print_pdf "$MAGAZINE_CLUES"
-          log "Printed extra magazine clues ($((PAGE_COUNT - 1)) pages) — 2 sets of clues total"
-        else
-          log "WARNING: Magazine output had only 1 page (clue extraction may have failed)"
-          notify "Crossword ⚠" "Sunday grid printed but clue sheet missing — check magazine_sunday.py" "Submarine"
-        fi
-
-        # Use the enhanced version for reMarkable too
-        PDF_FILE="$MAGAZINE_OUTPUT"
+      if [[ -f "$MAGAZINE_CLUES" ]]; then
+        PRINT_FILES+=("$MAGAZINE_CLUES")
+        log "Prepared magazine Sunday (grid + clue sheets)"
       else
-        # magazine_sunday.py failed entirely — fall back to printing the original
-        log "WARNING: magazine_sunday.py failed to produce output, printing original"
-        notify "Crossword ⚠" "Magazine handler failed — printing original PDF as fallback" "Submarine"
-        print_pdf "$PDF_FILE"
-        log "Printed magazine-page Sunday (original, fallback)"
+        log "WARNING: Magazine output had only 1 page (clue extraction may have failed)"
+        notify "Crossword ⚠" "Sunday grid prepared but clue sheet missing" "Submarine"
       fi
-    fi
-
-  else
-    # -----------------------------------------------------------------------
-    # WEEKDAY / SATURDAY
-    # -----------------------------------------------------------------------
-    # Check if this is a facsimile (undersized) puzzle that needs scaling up.
-    # This ONLY runs for non-Sunday puzzles — Sunday PDFs are never rasterized
-    # because the magazine handler needs the original vector PDF for text
-    # extraction.
-    SCALE_RESULT=$(scale_up_pdf "$PDF_FILE") && SCALED=true || SCALED=false
-    if $SCALED; then
-      PUZZLE_TYPE="facsimile"
-      log "Scale: $SCALE_RESULT"
-    elif [[ "$DOW" == "6" ]]; then
-      PUZZLE_TYPE="saturday"
+      PDF_FILE="$MAGAZINE_OUTPUT"
     else
-      PUZZLE_TYPE="weekday"
+      log "WARNING: magazine_sunday.py failed, using original"
+      notify "Crossword ⚠" "Magazine handler failed — using original PDF" "Submarine"
+      PRINT_FILES+=("$PDF_FILE")
     fi
-
-    print_pdf "$PDF_FILE"
-    log "Printed weekday puzzle (single-sided)"
   fi
+
+else
+  # -----------------------------------------------------------------------
+  # WEEKDAY / SATURDAY
+  # -----------------------------------------------------------------------
+  SCALE_RESULT=$(scale_up_pdf "$PDF_FILE") && SCALED=true || SCALED=false
+  if $SCALED; then
+    PUZZLE_TYPE="facsimile"
+    log "Scale: $SCALE_RESULT"
+  elif [[ "$DOW" == "6" ]]; then
+    PUZZLE_TYPE="saturday"
+  else
+    PUZZLE_TYPE="weekday"
+  fi
+  PRINT_FILES+=("$PDF_FILE")
+fi
+
+# =============================================================================
+# PRINT or RELAY — send to local printer, or upload for remote relay
+# =============================================================================
+if $DRY_RUN; then
+  log "[DRY RUN] Would print ${#PRINT_FILES[@]} file(s) to $PRINTER_NAME (DOW=$DOW, pages=$PAGE_COUNT)"
+elif printer_reachable; then
+  log "Printing to $PRINTER_NAME..."
+  for f in "${PRINT_FILES[@]}"; do
+    print_pdf "$f"
+  done
+  log "Printed ${#PRINT_FILES[@]} file(s) (single-sided)"
+else
+  log "Printer not reachable — switching to relay mode"
+  # Combine all print files into one PDF for the relay
+  if [[ ${#PRINT_FILES[@]} -eq 1 ]]; then
+    RELAY_FILE="${PRINT_FILES[0]}"
+  else
+    RELAY_FILE="$DOWNLOAD_DIR/crossword-$TODAY-relay.pdf"
+    python3 -c "
+from pypdf import PdfReader, PdfWriter
+writer = PdfWriter()
+for path in '''${PRINT_FILES[*]}'''.split():
+    for page in PdfReader(path).pages:
+        writer.add_page(page)
+writer.write('$RELAY_FILE')
+"
+    log "Combined ${#PRINT_FILES[@]} files into relay PDF"
+  fi
+  relay_upload "$RELAY_FILE"
+  log "Uploaded relay PDF to GitHub"
+  push_status --date "$TODAY" --status print-relay --started-at "$START_TIME" \
+    --pdf-size "$FETCH_SIZE" --page-count "$PAGE_COUNT" --dow "$DOW" \
+    --puzzle-type "$PUZZLE_TYPE"
+  notify "Crossword ↗" "Printer unreachable — sent to relay for Briggs" "Submarine"
 fi
 
 # --- UPLOAD TO REMARKABLE ---
@@ -351,15 +396,17 @@ else
   log "Uploaded to reMarkable"
 fi
 
-# --- NOTIFY SUCCESS ---
-if [[ "$DOW" == "7" ]]; then
-  if [[ "$PAGE_COUNT" -ge 2 ]]; then
-    notify "Crossword ✓" "Sunday puzzle printed (2pp + 2x clues) and sent to reMarkable"
+# --- NOTIFY SUCCESS (only if we printed locally) ---
+if ! $DRY_RUN && printer_reachable; then
+  if [[ "$DOW" == "7" ]]; then
+    if [[ "$PAGE_COUNT" -ge 2 ]]; then
+      notify "Crossword ✓" "Sunday puzzle printed (2pp + 2x clues) and sent to reMarkable"
+    else
+      notify "Crossword ✓" "Magazine Sunday: grid + clue sheet printed and sent to reMarkable"
+    fi
   else
-    notify "Crossword ✓" "Magazine Sunday: grid + clue sheet printed and sent to reMarkable"
+    notify "Crossword ✓" "Puzzle printed and sent to reMarkable"
   fi
-else
-  notify "Crossword ✓" "Puzzle printed and sent to reMarkable"
 fi
 
 # --- REPORT SUCCESS ---

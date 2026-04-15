@@ -78,6 +78,8 @@
   .error .card { background: var(--red-bg); }
   .pending .dot { background: var(--amber); animation: pulse 1.5s infinite; }
   .pending .card { background: var(--amber-bg); }
+  .relay .dot { background: var(--amber); }
+  .relay .card { background: var(--amber-bg); }
   .scheduled .dot { background: var(--gray); }
   .scheduled .card { background: var(--gray-bg); }
   @keyframes pulse {
@@ -235,6 +237,18 @@ async function loadStatus() {
       if (data.finished_at) details += ' → ' + formatTime(data.finished_at) + ' (' + elapsed(data.started_at, data.finished_at) + ')';
     }
     if (parts.length) details += (details ? '<br>' : '') + parts.join(' · ');
+    errorHtml = '';
+    showBtn = false;
+  } else if (data.status === 'print-relay') {
+    statusClass = 'relay';
+    statusLabel = 'Sent to relay';
+    const parts = [];
+    if (data.puzzle_type) parts.push(TYPE_LABELS[data.puzzle_type] || data.puzzle_type);
+    if (data.pdf_size) parts.push(formatSize(data.pdf_size));
+    if (data.page_count) parts.push(data.page_count + 'pg');
+    details = 'Printer unreachable — PDF uploaded for Briggs\' laptop';
+    if (data.started_at) details += '<br>' + formatTime(data.started_at);
+    if (parts.length) details += '<br>' + parts.join(' · ');
     errorHtml = '';
     showBtn = false;
   } else if (data.status === 'error') {
