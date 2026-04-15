@@ -1,0 +1,20 @@
+name: Request Rerun
+on:
+  workflow_dispatch:
+jobs:
+  request:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write rerun request
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          jq --arg ts "$TIMESTAMP" '.rerun_requested_at = $ts' docs/status.json > tmp.json
+          mv tmp.json docs/status.json
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add docs/status.json
+          git commit -m "rerun requested at $(date -u +%H:%M)"
+          git push

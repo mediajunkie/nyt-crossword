@@ -3,16 +3,16 @@
 # NYT Crossword Daily Automation
 # Downloads, prints, and sends the daily NYT crossword to reMarkable
 #
-# Approach: Uses AppleScript to execute JavaScript in an authenticated Chrome
-# session to download the crossword PDF. No cookie management needed.
+# Approach: Uses curl with NYT cookies to download the crossword PDF.
+# Cookie (NYT-S) must be exported from Chrome DevTools periodically.
 #
 # Requirements:
-#   - Google Chrome (with active NYT subscription, logged in)
-#   - "Allow JavaScript from Apple Events" enabled in Chrome
-#     (View → Developer → Allow JavaScript from Apple Events)
+#   - curl
+#   - cookies.txt with valid NYT-S cookie (from Chrome DevTools → Application → Cookies)
 #   - rmapi (brew install io41/tap/rmapi) — authenticated
 #   - pypdf, reportlab, pdf2image, numpy (pip3 install pypdf reportlab pdf2image numpy)
 #   - poppler (brew install poppler) — for pdf2image
+#   - gh CLI (for status reporting to GitHub Pages)
 #
 # Usage:
 #   nyt-crossword.sh              # today's puzzle
@@ -62,6 +62,13 @@ else
 fi
 FILENAME="nyt-crossword-${TODAY}.pdf"
 PDF_FILE="$DOWNLOAD_DIR/$FILENAME"
+START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+PUZZLE_TYPE=""
+
+# --- Status reporting ---
+push_status() {
+  "$SCRIPT_DIR/update-status.sh" "$@" || true
+}
 
 # --- Helper functions ---
 notify() {
@@ -77,6 +84,7 @@ log() {
 
 die() {
   log "ERROR: $*"
+  push_status --date "$TODAY" --status error --started-at "$START_TIME" --error "$*"
   notify "Crossword ✗" "$*" "Basso"
   exit 1
 }
@@ -147,6 +155,7 @@ command -v rmapi >/dev/null 2>&1 || die "rmapi not found. Install with: brew ins
 
 # --- FETCH via curl ---
 log "Fetching crossword for $TODAY..."
+push_status --date "$TODAY" --status pending --started-at "$START_TIME"
 
 COOKIE_FILE="$SCRIPT_DIR/cookies.txt"
 if [[ ! -f "$COOKIE_FILE" ]]; then
@@ -218,6 +227,19 @@ print(len(PdfReader('$PDF_FILE').pages))
 
 log "PDF has $PAGE_COUNT page(s), DOW=$DOW"
 
+# --- Determine puzzle type for status reporting ---
+if [[ "$DOW" == "7" ]]; then
+  if [[ "$PAGE_COUNT" -ge 2 ]]; then
+    PUZZLE_TYPE="sunday"
+  else
+    PUZZLE_TYPE="sunday-magazine"
+  fi
+elif [[ "$DOW" == "6" ]]; then
+  PUZZLE_TYPE="saturday"
+else
+  PUZZLE_TYPE="weekday"
+fi
+
 # =============================================================================
 # PRINT — four distinct cases, no global preprocessing
 # =============================================================================
@@ -233,6 +255,7 @@ else
     if [[ "$PAGE_COUNT" -ge 2 ]]; then
       # Case 3: Normal Sunday — 2 pages (grid + clues)
       # Print full PDF, then print clues page (page 2) again for second set
+      PUZZLE_TYPE="sunday"
       log "Normal Sunday (2+ pages)"
       print_pdf "$PDF_FILE"
       log "Printed full Sunday puzzle (2 pages, single-sided)"
@@ -252,6 +275,7 @@ writer.write('$PAGE2')
       # Case 4: Magazine Sunday — 1 page even with large_print
       # Run magazine_sunday.py on the ORIGINAL (untouched, vector) PDF
       # so it can extract text for clues and detect the grid visually.
+      PUZZLE_TYPE="sunday-magazine"
       log "Magazine-page Sunday detected (1 page) — running special handler"
       MAGAZINE_OUTPUT="$DOWNLOAD_DIR/crossword-$TODAY-magazine.pdf"
 
@@ -304,7 +328,12 @@ if len(reader.pages) >= 2:
     # extraction.
     SCALE_RESULT=$(scale_up_pdf "$PDF_FILE") && SCALED=true || SCALED=false
     if $SCALED; then
+      PUZZLE_TYPE="facsimile"
       log "Scale: $SCALE_RESULT"
+    elif [[ "$DOW" == "6" ]]; then
+      PUZZLE_TYPE="saturday"
+    else
+      PUZZLE_TYPE="weekday"
     fi
 
     print_pdf "$PDF_FILE"
@@ -332,6 +361,11 @@ if [[ "$DOW" == "7" ]]; then
 else
   notify "Crossword ✓" "Puzzle printed and sent to reMarkable"
 fi
+
+# --- REPORT SUCCESS ---
+push_status --date "$TODAY" --status success --started-at "$START_TIME" \
+  --pdf-size "$FETCH_SIZE" --page-count "$PAGE_COUNT" --dow "$DOW" \
+  --puzzle-type "$PUZZLE_TYPE"
 
 # --- CLEANUP old downloads (keep 14 days) ---
 find "$DOWNLOAD_DIR" -name "*.pdf" -mtime +14 -delete 2>/dev/null || true

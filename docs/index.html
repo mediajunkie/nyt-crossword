@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Crossword Status</title>
+<style>
+  :root {
+    --bg: #fafaf9; --fg: #1c1917; --muted: #78716c;
+    --card: #fff; --border: #e7e5e4;
+    --green: #16a34a; --green-bg: #f0fdf4;
+    --red: #dc2626; --red-bg: #fef2f2;
+    --amber: #d97706; --amber-bg: #fffbeb;
+    --gray: #9ca3af; --gray-bg: #f9fafb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1917; --fg: #fafaf9; --muted: #a8a29e;
+      --card: #292524; --border: #44403c;
+      --green: #4ade80; --green-bg: #14532d;
+      --red: #f87171; --red-bg: #7f1d1d;
+      --amber: #fbbf24; --amber-bg: #78350f;
+      --gray: #9ca3af; --gray-bg: #374151;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg); color: var(--fg);
+    padding: 1.5rem; max-width: 420px; margin: 0 auto;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1 { font-size: 1.25rem; font-weight: 600; }
+  .date { color: var(--muted); font-size: 0.9rem; margin-top: 0.25rem; }
+  .card {
+    margin-top: 1.25rem; padding: 1.25rem;
+    border-radius: 12px; border: 1px solid var(--border);
+    background: var(--card);
+  }
+  .status-row {
+    display: flex; align-items: center; gap: 0.6rem;
+    font-size: 1.1rem; font-weight: 600;
+  }
+  .dot {
+    width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+  }
+  .details {
+    margin-top: 0.75rem; font-size: 0.85rem; color: var(--muted);
+    line-height: 1.6;
+  }
+  .error-msg {
+    margin-top: 0.75rem; padding: 0.75rem;
+    border-radius: 8px; font-size: 0.85rem; line-height: 1.5;
+    background: var(--red-bg); color: var(--red);
+  }
+  .hint {
+    margin-top: 0.5rem; font-size: 0.8rem; color: var(--muted);
+    font-style: italic;
+  }
+  .btn {
+    display: block; width: 100%; margin-top: 1.25rem;
+    padding: 0.85rem; border: none; border-radius: 10px;
+    font-size: 1rem; font-weight: 600; cursor: pointer;
+    background: var(--fg); color: var(--bg);
+    transition: opacity 0.15s;
+  }
+  .btn:active { opacity: 0.7; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .footer {
+    margin-top: 1.5rem; font-size: 0.75rem; color: var(--muted);
+    text-align: center;
+  }
+  .success .dot { background: var(--green); }
+  .success .card { background: var(--green-bg); }
+  .error .dot { background: var(--red); }
+  .error .card { background: var(--red-bg); }
+  .pending .dot { background: var(--amber); animation: pulse 1.5s infinite; }
+  .pending .card { background: var(--amber-bg); }
+  .scheduled .dot { background: var(--gray); }
+  .scheduled .card { background: var(--gray-bg); }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+</style>
+</head>
+<body>
+<h1>NYT Crossword</h1>
+<div class="date" id="dateDisplay"></div>
+<div id="app"></div>
+<div class="footer" id="footer"></div>
+
+<script>
+const REPO = 'mediajunkie/nyt-crossword';
+const STATUS_URL = `https://api.github.com/repos/${REPO}/contents/docs/status.json`;
+const DISPATCH_URL = `https://api.github.com/repos/${REPO}/actions/workflows/rerun.yml/dispatches`;
+
+const DOW_NAMES = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const TYPE_LABELS = {
+  weekday: 'Weekday', saturday: 'Saturday', sunday: 'Sunday',
+  'sunday-magazine': 'Sunday (Magazine)', facsimile: 'Facsimile'
+};
+
+function formatDate(d) {
+  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+function formatTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+function formatSize(bytes) {
+  if (!bytes) return '';
+  return Math.round(bytes / 1024) + 'KB';
+}
+
+function elapsed(start, end) {
+  if (!start || !end) return '';
+  const s = Math.round((new Date(end) - new Date(start)) / 1000);
+  return s < 60 ? `${s}s` : `${Math.floor(s/60)}m ${s%60}s`;
+}
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function getHint(error) {
+  if (!error) return '';
+  const e = error.toLowerCase();
+  if (e.includes('401') || e.includes('403') || e.includes('auth') || e.includes('cookie')) {
+    return 'Cookie expired. In Chrome (me profile): nytimes.com → DevTools (Cmd+Opt+I) → Application → Cookies → copy NYT-S value → update cookies.txt';
+  }
+  if (e.includes('fetch') || e.includes('network') || e.includes('timeout')) {
+    return 'Transient error — tap Re-run to try again.';
+  }
+  if (e.includes('print') || e.includes('lpr')) {
+    return 'Check printer: paper, toner, network.';
+  }
+  return '';
+}
+
+function getToken() {
+  let t = localStorage.getItem('gh_token');
+  if (!t) {
+    t = prompt('GitHub personal access token (actions:write scope):');
+    if (t) localStorage.setItem('gh_token', t);
+  }
+  return t;
+}
+
+async function requestRerun() {
+  const token = getToken();
+  if (!token) return;
+
+  const btn = document.getElementById('rerunBtn');
+  btn.disabled = true;
+  btn.textContent = 'Requesting...';
+
+  try {
+    const resp = await fetch(DISPATCH_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Accept': 'application/vnd.github.v3+json'
+      },
+      body: JSON.stringify({ ref: 'main' })
+    });
+    if (resp.status === 204) {
+      btn.textContent = 'Re-run requested!';
+      setTimeout(() => { btn.textContent = 'Re-run'; btn.disabled = false; }, 10000);
+    } else if (resp.status === 401) {
+      localStorage.removeItem('gh_token');
+      btn.textContent = 'Bad token — tap to retry';
+      btn.disabled = false;
+    } else {
+      btn.textContent = `Error (${resp.status})`;
+      setTimeout(() => { btn.textContent = 'Re-run'; btn.disabled = false; }, 5000);
+    }
+  } catch (e) {
+    btn.textContent = 'Network error';
+    setTimeout(() => { btn.textContent = 'Re-run'; btn.disabled = false; }, 5000);
+  }
+}
+
+async function loadStatus() {
+  const today = todayStr();
+  const now = new Date();
+  document.getElementById('dateDisplay').textContent = formatDate(now);
+
+  let data = null;
+  try {
+    const resp = await fetch(STATUS_URL + '?t=' + Date.now(), {
+      headers: { 'Accept': 'application/vnd.github.v3+json' }
+    });
+    if (resp.ok) {
+      const json = await resp.json();
+      data = JSON.parse(atob(json.content));
+    }
+  } catch (e) {}
+
+  const app = document.getElementById('app');
+  const isToday = data && data.date === today;
+  const hour = now.getHours();
+
+  let statusClass, statusLabel, details, errorHtml, showBtn;
+
+  if (!isToday) {
+    if (hour < 7) {
+      statusClass = 'scheduled';
+      statusLabel = 'Scheduled for 6:30 AM';
+      details = '';
+      showBtn = false;
+    } else {
+      statusClass = 'scheduled';
+      statusLabel = 'No data for today';
+      details = data ? `Last run: ${data.date}` : '';
+      showBtn = true;
+    }
+    errorHtml = '';
+  } else if (data.status === 'success') {
+    statusClass = 'success';
+    statusLabel = 'Success';
+    const parts = [];
+    if (data.puzzle_type) parts.push(TYPE_LABELS[data.puzzle_type] || data.puzzle_type);
+    if (data.pdf_size) parts.push(formatSize(data.pdf_size));
+    if (data.page_count) parts.push(data.page_count + 'pg');
+    details = '';
+    if (data.started_at) {
+      details += formatTime(data.started_at);
+      if (data.finished_at) details += ' → ' + formatTime(data.finished_at) + ' (' + elapsed(data.started_at, data.finished_at) + ')';
+    }
+    if (parts.length) details += (details ? '<br>' : '') + parts.join(' · ');
+    errorHtml = '';
+    showBtn = false;
+  } else if (data.status === 'error') {
+    statusClass = 'error';
+    statusLabel = 'Failed';
+    details = data.started_at ? formatTime(data.started_at) : '';
+    const hint = getHint(data.error);
+    errorHtml = `<div class="error-msg">${data.error || 'Unknown error'}</div>`;
+    if (hint) errorHtml += `<div class="hint">${hint}</div>`;
+    showBtn = true;
+  } else if (data.status === 'pending') {
+    statusClass = 'pending';
+    statusLabel = 'Running...';
+    details = data.started_at ? 'Started ' + formatTime(data.started_at) : '';
+    errorHtml = '';
+    showBtn = false;
+  } else {
+    statusClass = 'scheduled';
+    statusLabel = data.status || 'Unknown';
+    details = '';
+    errorHtml = '';
+    showBtn = true;
+  }
+
+  app.className = statusClass;
+  app.innerHTML = `
+    <div class="card">
+      <div class="status-row"><div class="dot"></div>${statusLabel}</div>
+      ${details ? `<div class="details">${details}</div>` : ''}
+      ${errorHtml}
+    </div>
+    ${showBtn ? '<button class="btn" id="rerunBtn" onclick="requestRerun()">Re-run</button>' : ''}
+  `;
+
+  document.getElementById('footer').textContent = 'Updated ' + now.toLocaleTimeString();
+
+  // Auto-refresh: every 15s when pending, 60s otherwise
+  const interval = (isToday && data.status === 'pending') ? 15000 : 60000;
+  setTimeout(loadStatus, interval);
+}
+
+loadStatus();
+</script>
+</body>
+</html>
