@@ -1,12 +1,12 @@
 {
   "date": "2026-04-15",
-  "status": "pending",
+  "status": "print-relay",
   "started_at": "2026-04-15T17:23:53Z",
   "finished_at": null,
-  "pdf_size": null,
-  "page_count": null,
-  "dow": null,
-  "puzzle_type": null,
+  "pdf_size": 29283,
+  "page_count": 1,
+  "dow": 3,
+  "puzzle_type": "weekday",
   "error": null,
   "rerun_requested_at": null
 }
