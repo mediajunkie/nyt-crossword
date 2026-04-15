@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.xian.nyt-crossword</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/xian/.local/bin/nyt-crossword.sh</string>
+    </array>
+
+    <!-- Run at 6:30am daily. Puzzles publish 10pm ET night before (6pm Sat for Sun). -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>6</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+
+    <!-- Ensure PATH includes Homebrew so rmapi, python3, etc. are found -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/xian/.config/nyt-crossword/launchd-stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/xian/.config/nyt-crossword/launchd-stderr.log</string>
+
+</dict>
+</plist>
