@@ -1,0 +1,12 @@
+{
+  "date": "2026-04-15",
+  "status": "success",
+  "started_at": "2026-04-15T06:30:00-07:00",
+  "finished_at": "2026-04-15T16:07:06Z",
+  "pdf_size": 29283,
+  "page_count": 1,
+  "dow": 3,
+  "puzzle_type": "weekday",
+  "error": null,
+  "rerun_requested_at": null
+}
