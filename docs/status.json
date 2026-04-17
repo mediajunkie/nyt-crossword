@@ -1,8 +1,8 @@
 {
   "date": "2026-04-17",
-  "status": "print-relay",
+  "status": "success",
   "started_at": "2026-04-17T13:30:04Z",
-  "finished_at": null,
+  "finished_at": "2026-04-17T13:30:14Z",
   "pdf_size": 29065,
   "page_count": 1,
   "dow": 5,
