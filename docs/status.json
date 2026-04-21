@@ -22,5 +22,10 @@
     "at": "2026-04-21T16:24:02Z",
     "error": null,
     "method": "local"
+  },
+  "remarkable": {
+    "status": "pending",
+    "at": "2026-04-21T16:24:19Z",
+    "error": null
   }
 }
