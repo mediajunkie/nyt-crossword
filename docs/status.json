@@ -1,12 +1,12 @@
 {
-  "date": "2026-04-18",
-  "status": "success",
-  "started_at": "2026-04-18T13:30:00Z",
-  "finished_at": "2026-04-18T13:30:14Z",
-  "pdf_size": 28582,
-  "page_count": 1,
-  "dow": 6,
-  "puzzle_type": "saturday",
+  "date": "2026-04-21",
+  "status": "pending",
+  "started_at": "2026-04-21T13:35:01Z",
+  "finished_at": null,
+  "pdf_size": null,
+  "page_count": null,
+  "dow": null,
+  "puzzle_type": null,
   "error": null,
   "rerun_requested_at": null
 }
