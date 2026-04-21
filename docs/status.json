@@ -1,7 +1,7 @@
 {
   "date": "2026-04-21",
   "status": "success",
-  "started_at": "2026-04-21T16:23:52Z",
+  "started_at": "2026-04-21T16:24:00Z",
   "finished_at": "2026-04-21T15:57:29Z",
   "pdf_size": 29571,
   "page_count": 1,
@@ -18,9 +18,8 @@
     "puzzle_id": "23889"
   },
   "print": {
-    "status": "success",
-    "at": "2026-04-21T16:22:18Z",
-    "error": null,
-    "method": "local"
+    "status": "pending",
+    "at": "2026-04-21T16:24:00Z",
+    "error": null
   }
 }
