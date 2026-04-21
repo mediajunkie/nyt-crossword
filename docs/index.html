@@ -190,7 +190,11 @@ async function requestRerun(step) {
 }
 
 function toggleStep(el) {
-  el.classList.toggle('expanded');
+  const wasExpanded = el.classList.contains('expanded');
+  // Collapse all steps (accordion)
+  document.querySelectorAll('.step.expanded').forEach(s => s.classList.remove('expanded'));
+  // Toggle the clicked one
+  if (!wasExpanded) el.classList.add('expanded');
 }
 
 function stepClass(status) {
@@ -200,7 +204,7 @@ function stepClass(status) {
   return 's-none';
 }
 
-function renderStep(name, label, stepData, showRetry) {
+function renderStep(name, label, stepData, canRun) {
   if (!stepData) {
     return `<div class="step s-none" onclick="toggleStep(this)">
       <div class="step-header">
@@ -209,7 +213,7 @@ function renderStep(name, label, stepData, showRetry) {
       </div>
       <div class="step-detail">
         Not yet attempted
-        ${showRetry ? `<button class="btn" onclick="event.stopPropagation(); requestRerun('${name}')">Run ${label}</button>` : ''}
+        ${canRun ? `<button class="btn" onclick="event.stopPropagation(); requestRerun('${name}')">Run ${label}</button>` : ''}
       </div>
     </div>`;
   }
@@ -238,7 +242,7 @@ function renderStep(name, label, stepData, showRetry) {
     if (hint) errorHtml += `<div class="hint">${hint}</div>`;
   }
 
-  const retryBtn = (status === 'error' || showRetry)
+  const retryBtn = (status === 'error')
     ? `<button class="btn" onclick="event.stopPropagation(); requestRerun('${name}')">Retry ${label}</button>`
     : '';
 
