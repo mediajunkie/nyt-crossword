@@ -1,6 +1,11 @@
 name: Request Rerun
 on:
   workflow_dispatch:
+    inputs:
+      step:
+        description: 'Step to retry (fetch, remarkable, print, all)'
+        required: false
+        default: 'all'
 jobs:
   request:
     runs-on: ubuntu-latest
@@ -9,12 +14,15 @@ jobs:
       - name: Write rerun request
         run: |
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          jq --arg ts "$TIMESTAMP" '.rerun_requested_at = $ts' docs/status.json > tmp.json
+          STEP="${{ github.event.inputs.step || 'all' }}"
+          jq --arg ts "$TIMESTAMP" --arg step "$STEP" \
+            '.rerun_requested_at = $ts | .rerun_step = $step' \
+            docs/status.json > tmp.json
           mv tmp.json docs/status.json
       - name: Commit and push
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add docs/status.json
-          git commit -m "rerun requested at $(date -u +%H:%M)"
+          git commit -m "rerun requested: ${{ github.event.inputs.step || 'all' }}"
           git push

@@ -10,19 +10,19 @@
   :root {
     --bg: #fafaf9; --fg: #1c1917; --muted: #78716c;
     --card: #fff; --border: #e7e5e4;
-    --green: #16a34a; --green-bg: #f0fdf4;
-    --red: #dc2626; --red-bg: #fef2f2;
-    --amber: #d97706; --amber-bg: #fffbeb;
-    --gray: #9ca3af; --gray-bg: #f9fafb;
+    --green: #16a34a; --green-bg: #f0fdf4; --green-border: #bbf7d0;
+    --red: #dc2626; --red-bg: #fef2f2; --red-border: #fecaca;
+    --amber: #d97706; --amber-bg: #fffbeb; --amber-border: #fde68a;
+    --gray: #9ca3af; --gray-bg: #f9fafb; --gray-border: #e5e7eb;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #1c1917; --fg: #fafaf9; --muted: #a8a29e;
       --card: #292524; --border: #44403c;
-      --green: #4ade80; --green-bg: #14532d;
-      --red: #f87171; --red-bg: #7f1d1d;
-      --amber: #fbbf24; --amber-bg: #78350f;
-      --gray: #9ca3af; --gray-bg: #374151;
+      --green: #4ade80; --green-bg: #14532d; --green-border: #166534;
+      --red: #f87171; --red-bg: #7f1d1d; --red-border: #991b1b;
+      --amber: #fbbf24; --amber-bg: #78350f; --amber-border: #92400e;
+      --gray: #9ca3af; --gray-bg: #374151; --gray-border: #4b5563;
     }
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -34,64 +34,69 @@
   }
   h1 { font-size: 1.25rem; font-weight: 600; }
   .date { color: var(--muted); font-size: 0.9rem; margin-top: 0.25rem; }
-  .card {
-    margin-top: 1.25rem; padding: 1.25rem;
-    border-radius: 12px; border: 1px solid var(--border);
-    background: var(--card);
+
+  .steps { margin-top: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; }
+
+  .step {
+    padding: 0.85rem 1rem; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--card);
+    transition: all 0.15s;
   }
-  .status-row {
-    display: flex; align-items: center; gap: 0.6rem;
-    font-size: 1.1rem; font-weight: 600;
+  .step-header {
+    display: flex; align-items: center; justify-content: space-between;
   }
-  .dot {
-    width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+  .step-left { display: flex; align-items: center; gap: 0.5rem; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .step-name { font-weight: 600; font-size: 0.95rem; }
+  .step-time { font-size: 0.8rem; color: var(--muted); }
+
+  .step-detail {
+    display: none; margin-top: 0.65rem; padding-top: 0.65rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem; color: var(--muted); line-height: 1.6;
   }
-  .details {
-    margin-top: 0.75rem; font-size: 0.85rem; color: var(--muted);
-    line-height: 1.6;
-  }
+  .step.expanded .step-detail { display: block; }
+
+  .step.s-success { border-color: var(--green-border); background: var(--green-bg); }
+  .step.s-success .dot { background: var(--green); }
+  .step.s-error { border-color: var(--red-border); background: var(--red-bg); }
+  .step.s-error .dot { background: var(--red); }
+  .step.s-pending { border-color: var(--amber-border); background: var(--amber-bg); }
+  .step.s-pending .dot { background: var(--amber); animation: pulse 1.5s infinite; }
+  .step.s-none { border-color: var(--gray-border); background: var(--gray-bg); }
+  .step.s-none .dot { background: var(--gray); }
+
   .error-msg {
-    margin-top: 0.75rem; padding: 0.75rem;
-    border-radius: 8px; font-size: 0.85rem; line-height: 1.5;
-    background: var(--red-bg); color: var(--red);
+    margin-top: 0.4rem; padding: 0.6rem; border-radius: 6px;
+    background: var(--red-bg); color: var(--red); font-size: 0.8rem; line-height: 1.4;
   }
   .hint {
-    margin-top: 0.5rem; font-size: 0.8rem; color: var(--muted);
-    font-style: italic;
+    margin-top: 0.35rem; font-size: 0.78rem; color: var(--muted); font-style: italic;
   }
+
   .btn {
-    display: block; width: 100%; margin-top: 1.25rem;
-    padding: 0.85rem; border: none; border-radius: 10px;
-    font-size: 1rem; font-weight: 600; cursor: pointer;
+    display: block; width: 100%; margin-top: 0.6rem;
+    padding: 0.65rem; border: none; border-radius: 8px;
+    font-size: 0.85rem; font-weight: 600; cursor: pointer;
     background: var(--fg); color: var(--bg);
     transition: opacity 0.15s;
   }
   .btn:active { opacity: 0.7; }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
   .footer {
-    margin-top: 1.5rem; font-size: 0.75rem; color: var(--muted);
-    text-align: center;
+    margin-top: 1.25rem; font-size: 0.75rem; color: var(--muted); text-align: center;
   }
-  .success .dot { background: var(--green); }
-  .success .card { background: var(--green-bg); }
-  .error .dot { background: var(--red); }
-  .error .card { background: var(--red-bg); }
-  .pending .dot { background: var(--amber); animation: pulse 1.5s infinite; }
-  .pending .card { background: var(--amber-bg); }
-  .relay .dot { background: var(--amber); }
-  .relay .card { background: var(--amber-bg); }
-  .scheduled .dot { background: var(--gray); }
-  .scheduled .card { background: var(--gray-bg); }
+
   @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
+    0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
   }
 </style>
 </head>
 <body>
 <h1>NYT Crossword</h1>
 <div class="date" id="dateDisplay"></div>
-<div id="app"></div>
+<div class="steps" id="app"></div>
 <div class="footer" id="footer"></div>
 
 <script>
@@ -99,7 +104,6 @@ const REPO = 'mediajunkie/nyt-crossword';
 const STATUS_URL = `https://api.github.com/repos/${REPO}/contents/docs/status.json`;
 const DISPATCH_URL = `https://api.github.com/repos/${REPO}/actions/workflows/rerun.yml/dispatches`;
 
-const DOW_NAMES = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const TYPE_LABELS = {
   weekday: 'Weekday', saturday: 'Saturday', sunday: 'Sunday',
   'sunday-magazine': 'Sunday (Magazine)', facsimile: 'Facsimile'
@@ -108,40 +112,36 @@ const TYPE_LABELS = {
 function formatDate(d) {
   return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 }
-
 function formatTime(iso) {
   if (!iso) return '';
-  const d = new Date(iso);
-  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
-
 function formatSize(bytes) {
-  if (!bytes) return '';
-  return Math.round(bytes / 1024) + 'KB';
+  return bytes ? Math.round(bytes / 1024) + 'KB' : '';
 }
-
-function elapsed(start, end) {
-  if (!start || !end) return '';
-  const s = Math.round((new Date(end) - new Date(start)) / 1000);
-  return s < 60 ? `${s}s` : `${Math.floor(s/60)}m ${s%60}s`;
-}
-
 function todayStr() {
   const d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
 
-function getHint(error) {
+function getHint(step, error) {
   if (!error) return '';
   const e = error.toLowerCase();
-  if (e.includes('401') || e.includes('403') || e.includes('auth') || e.includes('cookie')) {
-    return 'Cookie expired. In Chrome (me profile): nytimes.com → DevTools (Cmd+Opt+I) → Application → Cookies → copy NYT-S value → update cookies.txt';
+  if (step === 'fetch') {
+    if (e.includes('401') || e.includes('403') || e.includes('auth') || e.includes('cookie')) {
+      return 'Cookie expired. In Chrome (me profile): nytimes.com \u2192 DevTools (Cmd+Opt+I) \u2192 Application \u2192 Cookies \u2192 copy NYT-S value \u2192 update cookies.txt';
+    }
+    if (e.includes('fetch') || e.includes('network') || e.includes('timeout')) {
+      return 'Transient network error \u2014 tap Retry to try again.';
+    }
   }
-  if (e.includes('fetch') || e.includes('network') || e.includes('timeout')) {
-    return 'Transient error — tap Re-run to try again.';
+  if (step === 'print') {
+    if (e.includes('unreachable') || e.includes('printer')) {
+      return 'Check printer: power, toner, paper, network.';
+    }
   }
-  if (e.includes('print') || e.includes('lpr')) {
-    return 'Check printer: paper, toner, network.';
+  if (step === 'remarkable') {
+    return 'reMarkable upload issue \u2014 tap Retry.';
   }
   return '';
 }
@@ -155,11 +155,11 @@ function getToken() {
   return t;
 }
 
-async function requestRerun() {
+async function requestRerun(step) {
   const token = getToken();
   if (!token) return;
 
-  const btn = document.getElementById('rerunBtn');
+  const btn = event.target;
   btn.disabled = true;
   btn.textContent = 'Requesting...';
 
@@ -170,23 +170,89 @@ async function requestRerun() {
         'Authorization': 'Bearer ' + token,
         'Accept': 'application/vnd.github.v3+json'
       },
-      body: JSON.stringify({ ref: 'main' })
+      body: JSON.stringify({ ref: 'main', inputs: { step: step } })
     });
     if (resp.status === 204) {
-      btn.textContent = 'Re-run requested!';
-      setTimeout(() => { btn.textContent = 'Re-run'; btn.disabled = false; }, 10000);
+      btn.textContent = 'Requested!';
+      setTimeout(loadStatus, 10000);
     } else if (resp.status === 401) {
       localStorage.removeItem('gh_token');
-      btn.textContent = 'Bad token — tap to retry';
+      btn.textContent = 'Bad token \u2014 tap to retry';
       btn.disabled = false;
     } else {
       btn.textContent = `Error (${resp.status})`;
-      setTimeout(() => { btn.textContent = 'Re-run'; btn.disabled = false; }, 5000);
+      setTimeout(() => { btn.textContent = 'Retry'; btn.disabled = false; }, 5000);
     }
   } catch (e) {
     btn.textContent = 'Network error';
-    setTimeout(() => { btn.textContent = 'Re-run'; btn.disabled = false; }, 5000);
+    setTimeout(() => { btn.textContent = 'Retry'; btn.disabled = false; }, 5000);
   }
+}
+
+function toggleStep(el) {
+  el.classList.toggle('expanded');
+}
+
+function stepClass(status) {
+  if (status === 'success') return 's-success';
+  if (status === 'error') return 's-error';
+  if (status === 'pending') return 's-pending';
+  return 's-none';
+}
+
+function renderStep(name, label, stepData, showRetry) {
+  if (!stepData) {
+    return `<div class="step s-none" onclick="toggleStep(this)">
+      <div class="step-header">
+        <div class="step-left"><div class="dot"></div><span class="step-name">${label}</span></div>
+        <span class="step-time">\u2014</span>
+      </div>
+      <div class="step-detail">
+        Not yet attempted
+        ${showRetry ? `<button class="btn" onclick="event.stopPropagation(); requestRerun('${name}')">Run ${label}</button>` : ''}
+      </div>
+    </div>`;
+  }
+
+  const status = stepData.status || 'none';
+  const time = formatTime(stepData.at);
+  let details = '';
+
+  // Step-specific details
+  if (name === 'fetch' && status === 'success') {
+    const parts = [];
+    if (stepData.pdf_size) parts.push(formatSize(stepData.pdf_size));
+    if (stepData.page_count) parts.push(stepData.page_count + 'pg');
+    if (stepData.puzzle_id) parts.push('#' + stepData.puzzle_id);
+    if (parts.length) details += parts.join(' \u00b7 ');
+  }
+  if (name === 'print' && status === 'success' && stepData.method) {
+    const methods = { local: 'Local printer', 'relay-waiting': 'Sent to relay (waiting)', 'relay-printed': 'Printed via relay' };
+    details += methods[stepData.method] || stepData.method;
+  }
+
+  let errorHtml = '';
+  if (status === 'error' && stepData.error) {
+    const hint = getHint(name, stepData.error);
+    errorHtml = `<div class="error-msg">${stepData.error}</div>`;
+    if (hint) errorHtml += `<div class="hint">${hint}</div>`;
+  }
+
+  const retryBtn = (status === 'error' || showRetry)
+    ? `<button class="btn" onclick="event.stopPropagation(); requestRerun('${name}')">Retry ${label}</button>`
+    : '';
+
+  return `<div class="step ${stepClass(status)}" onclick="toggleStep(this)">
+    <div class="step-header">
+      <div class="step-left"><div class="dot"></div><span class="step-name">${label}</span></div>
+      <span class="step-time">${time}</span>
+    </div>
+    <div class="step-detail">
+      ${details}
+      ${errorHtml}
+      ${retryBtn}
+    </div>
+  </div>`;
 }
 
 async function loadStatus() {
@@ -209,85 +275,40 @@ async function loadStatus() {
   const isToday = data && data.date === today;
   const hour = now.getHours();
 
-  let statusClass, statusLabel, details, errorHtml, showBtn;
-
   if (!isToday) {
     if (hour < 7) {
-      statusClass = 'scheduled';
-      statusLabel = 'Scheduled for 6:30 AM';
-      details = '';
-      showBtn = false;
+      app.innerHTML = `<div class="step s-none">
+        <div class="step-header">
+          <div class="step-left"><div class="dot"></div><span class="step-name">Scheduled for 6:30 AM</span></div>
+        </div>
+      </div>`;
     } else {
-      statusClass = 'scheduled';
-      statusLabel = 'No data for today';
-      details = data ? `Last run: ${data.date}` : '';
-      showBtn = true;
+      app.innerHTML = `<div class="step s-none" onclick="toggleStep(this)">
+        <div class="step-header">
+          <div class="step-left"><div class="dot"></div><span class="step-name">No data for today</span></div>
+        </div>
+        <div class="step-detail">
+          ${data ? 'Last run: ' + data.date : 'No status data found'}
+          <button class="btn" onclick="event.stopPropagation(); requestRerun('all')">Run Now</button>
+        </div>
+      </div>`;
     }
-    errorHtml = '';
-  } else if (data.status === 'success') {
-    statusClass = 'success';
-    statusLabel = 'Success';
-    const parts = [];
-    if (data.puzzle_type) parts.push(TYPE_LABELS[data.puzzle_type] || data.puzzle_type);
-    if (data.pdf_size) parts.push(formatSize(data.pdf_size));
-    if (data.page_count) parts.push(data.page_count + 'pg');
-    details = '';
-    if (data.started_at) {
-      details += formatTime(data.started_at);
-      if (data.finished_at) details += ' → ' + formatTime(data.finished_at) + ' (' + elapsed(data.started_at, data.finished_at) + ')';
-    }
-    if (parts.length) details += (details ? '<br>' : '') + parts.join(' · ');
-    errorHtml = '';
-    showBtn = false;
-  } else if (data.status === 'print-relay') {
-    statusClass = 'relay';
-    statusLabel = 'Sent to relay';
-    const parts = [];
-    if (data.puzzle_type) parts.push(TYPE_LABELS[data.puzzle_type] || data.puzzle_type);
-    if (data.pdf_size) parts.push(formatSize(data.pdf_size));
-    if (data.page_count) parts.push(data.page_count + 'pg');
-    details = 'Printer unreachable — PDF uploaded for Briggs\' laptop';
-    if (data.started_at) details += '<br>' + formatTime(data.started_at);
-    if (parts.length) details += '<br>' + parts.join(' · ');
-    errorHtml = '';
-    showBtn = false;
-  } else if (data.status === 'error') {
-    statusClass = 'error';
-    statusLabel = 'Failed';
-    details = data.started_at ? formatTime(data.started_at) : '';
-    const hint = getHint(data.error);
-    errorHtml = `<div class="error-msg">${data.error || 'Unknown error'}</div>`;
-    if (hint) errorHtml += `<div class="hint">${hint}</div>`;
-    showBtn = true;
-  } else if (data.status === 'pending') {
-    statusClass = 'pending';
-    statusLabel = 'Running...';
-    details = data.started_at ? 'Started ' + formatTime(data.started_at) : '';
-    errorHtml = '';
-    showBtn = false;
   } else {
-    statusClass = 'scheduled';
-    statusLabel = data.status || 'Unknown';
-    details = '';
-    errorHtml = '';
-    showBtn = true;
-  }
+    // Determine puzzle type label for header
+    const typeLabel = data.puzzle_type ? (TYPE_LABELS[data.puzzle_type] || data.puzzle_type) : '';
+    const dateHeader = typeLabel ? `<div style="font-size:0.8rem; color:var(--muted); margin-bottom:0.25rem">${typeLabel}</div>` : '';
 
-  app.className = statusClass;
-  app.innerHTML = `
-    <div class="card">
-      <div class="status-row"><div class="dot"></div>${statusLabel}</div>
-      ${details ? `<div class="details">${details}</div>` : ''}
-      ${errorHtml}
-    </div>
-    ${showBtn ? '<button class="btn" id="rerunBtn" onclick="requestRerun()">Re-run</button>' : ''}
-  `;
+    app.innerHTML = dateHeader
+      + renderStep('fetch', 'Fetched', data.fetch, false)
+      + renderStep('remarkable', 'reMarkable', data.remarkable, data.fetch && data.fetch.status === 'success')
+      + renderStep('print', 'Printed', data.print, data.fetch && data.fetch.status === 'success');
+  }
 
   document.getElementById('footer').textContent = 'Updated ' + now.toLocaleTimeString();
 
-  // Auto-refresh: every 15s when pending, 60s otherwise
-  const interval = (isToday && data.status === 'pending') ? 15000 : 60000;
-  setTimeout(loadStatus, interval);
+  // Auto-refresh: 15s if any step is pending, 60s otherwise
+  const anyPending = isToday && data && ['fetch','remarkable','print'].some(s => data[s] && data[s].status === 'pending');
+  setTimeout(loadStatus, anyPending ? 15000 : 60000);
 }
 
 loadStatus();

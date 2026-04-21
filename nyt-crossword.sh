@@ -15,10 +15,13 @@
 #   - gh CLI (for status reporting to GitHub Pages)
 #
 # Usage:
-#   nyt-crossword.sh              # today's puzzle
+#   nyt-crossword.sh              # today's puzzle (all steps)
 #   nyt-crossword.sh 2026-02-15   # specific date
 #   nyt-crossword.sh --dry-run    # test without printing/uploading
 #   nyt-crossword.sh --standard-sunday  # force standard layout + magazine handler
+#   nyt-crossword.sh --step fetch       # only fetch PDF
+#   nyt-crossword.sh --step remarkable  # only upload to reMarkable (uses existing PDF)
+#   nyt-crossword.sh --step print       # only print (uses existing PDF)
 #
 # Puzzle cases handled:
 #   1. Normal weekday/Saturday — letter-sized, 1 page → print directly
@@ -47,12 +50,22 @@ RELAY_PDF_PATH="docs/pending-print.pdf"
 DRY_RUN=false
 STANDARD_SUNDAY=false
 TARGET_DATE=""
+RUN_STEP=""
 for arg in "$@"; do
   case "$arg" in
     --dry-run)          DRY_RUN=true ;;
     --standard-sunday)  STANDARD_SUNDAY=true ;;
+    --step)             ;; # value captured below
+    fetch|remarkable|print)
+      # Capture --step value (comes after --step)
+      if [[ "${PREV_ARG:-}" == "--step" ]]; then
+        RUN_STEP="$arg"
+      else
+        TARGET_DATE="$arg"
+      fi ;;
     *)                  TARGET_DATE="$arg" ;;
   esac
+  PREV_ARG="$arg"
 done
 
 # --- Date handling ---
@@ -69,10 +82,17 @@ FILENAME="nyt-crossword-${TODAY}.pdf"
 PDF_FILE="$DOWNLOAD_DIR/$FILENAME"
 START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 PUZZLE_TYPE=""
+PUZZLE_ID=""
+FETCH_SIZE=""
+PAGE_COUNT=""
 
 # --- Status reporting ---
-push_status() {
-  "$SCRIPT_DIR/update-status.sh" "$@" || true
+push_step() {
+  # push_step <step> <status> [extra args...]
+  local step="$1" step_status="$2"
+  shift 2
+  "$SCRIPT_DIR/update-status.sh" --date "$TODAY" --step "$step" --step-status "$step_status" \
+    --started-at "$START_TIME" --dow "$DOW" --puzzle-type "$PUZZLE_TYPE" "$@" || true
 }
 
 # --- Helper functions ---
@@ -87,48 +107,31 @@ log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" | tee -a "$LOG_FILE"
 }
 
-die() {
-  log "ERROR: $*"
-  push_status --date "$TODAY" --status error --started-at "$START_TIME" --error "$*"
-  notify "Crossword ✗" "$*" "Basso"
-  exit 1
-}
-
 printer_reachable() {
   ping -c1 -W2 "$PRINTER_IP" &>/dev/null
 }
 
 print_pdf() {
-  # Print a PDF single-sided with fit-to-page
   local file="$1"
   lpr -P "$PRINTER_NAME" -o sides=one-sided -o fit-to-page "$file"
 }
 
 relay_upload() {
-  # Upload a PDF to GitHub for the relay printer to pick up
   local file="$1"
   local content
   content=$(base64 < "$file")
-
-  # Get existing SHA if file exists
   local sha
   sha=$(gh api "repos/$RELAY_REPO/contents/$RELAY_PDF_PATH" --jq '.sha' 2>/dev/null || echo "")
-
   local -a args=(
     --method PUT
     -f "message=print-relay: $TODAY"
     -f "content=$content"
   )
   [[ -n "$sha" ]] && args+=(-f "sha=$sha")
-
   gh api "repos/$RELAY_REPO/contents/$RELAY_PDF_PATH" "${args[@]}" --silent
 }
 
 scale_up_pdf() {
-  # Scale an undersized PDF up to letter paper via 300dpi rasterization.
-  # CUPS fit-to-page only scales DOWN; this is needed for scale-UP.
-  # Only modifies the file if it's significantly smaller than letter size.
-  # Returns 0 if scaled, 1 if no scaling needed.
   local file="$1"
   python3 -c "
 from pypdf import PdfReader
@@ -137,8 +140,8 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 import sys, os
 
-LETTER_W, LETTER_H = letter  # 612, 792
-TOLERANCE = 72  # 1 inch — only rasterize significantly undersized PDFs
+LETTER_W, LETTER_H = letter
+TOLERANCE = 72
 
 reader = PdfReader('$file')
 needs_scaling = False
@@ -150,7 +153,7 @@ for page in reader.pages:
         break
 
 if not needs_scaling:
-    sys.exit(1)  # exit 1 = no scaling needed (not an error)
+    sys.exit(1)
 
 images = convert_from_path('$file', dpi=300)
 tmp_dir = '/tmp/nyt-crossword-pages'
@@ -178,139 +181,187 @@ print(f'Scaled {len(images)} page(s): {pw:.0f}x{ph:.0f} -> {LETTER_W:.0f}x{LETTE
 " 2>&1
 }
 
-# --- Preflight checks ---
+# --- Preflight ---
 mkdir -p "$DOWNLOAD_DIR"
-command -v rmapi >/dev/null 2>&1 || die "rmapi not found. Install with: brew install io41/tap/rmapi"
 
-# --- FETCH via curl ---
-log "Fetching crossword for $TODAY..."
-push_status --date "$TODAY" --status pending --started-at "$START_TIME"
+# =============================================================================
+# STEP: FETCH — download the crossword PDF
+# =============================================================================
+do_fetch() {
+  log "Fetching crossword for $TODAY..."
+  push_step fetch pending
 
-COOKIE_FILE="$SCRIPT_DIR/cookies.txt"
-if [[ ! -f "$COOKIE_FILE" ]]; then
-  die "Cookie file not found at $COOKIE_FILE. Export NYT-S cookie from Chrome DevTools → Application → Cookies."
-fi
-COOKIES=$(cat "$COOKIE_FILE")
+  COOKIE_FILE="$SCRIPT_DIR/cookies.txt"
+  if [[ ! -f "$COOKIE_FILE" ]]; then
+    push_step fetch error --error "Cookie file not found at $COOKIE_FILE"
+    log "ERROR: Cookie file not found"
+    return 1
+  fi
+  COOKIES=$(cat "$COOKIE_FILE")
 
-# --standard-sunday: fetch without large_print but print as Sunday magazine
-if $STANDARD_SUNDAY; then
-  DOW="7"  # force Sunday print path (magazine handler)
-  log "Standard-Sunday mode: fetching without large_print, forcing magazine handler"
-fi
+  if $STANDARD_SUNDAY; then
+    DOW="7"
+    log "Standard-Sunday mode: fetching without large_print, forcing magazine handler"
+  fi
 
-# Step 1: Get puzzle ID from the metadata API
-MAX_ATTEMPTS=3
-PUZZLE_ID=""
-for ATTEMPT in $(seq 1 $MAX_ATTEMPTS); do
-  META_HTTP=$(curl -s -w '\n%{http_code}' \
+  # Get puzzle ID from metadata API
+  MAX_ATTEMPTS=3
+  for ATTEMPT in $(seq 1 $MAX_ATTEMPTS); do
+    META_HTTP=$(curl -s -w '\n%{http_code}' \
+      -H "Cookie: $COOKIES" \
+      "https://www.nytimes.com/svc/crosswords/v6/puzzle/daily/${TODAY}.json")
+    META_CODE=$(echo "$META_HTTP" | tail -1)
+    META_BODY=$(echo "$META_HTTP" | sed '$d')
+
+    if [[ "$META_CODE" == "200" ]]; then
+      PUZZLE_ID=$(echo "$META_BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id', d.get('puzzle_id','')))" 2>/dev/null)
+      break
+    elif [[ "$META_CODE" == "401" || "$META_CODE" == "403" ]]; then
+      push_step fetch error --error "NYT auth failed (HTTP $META_CODE). Re-export NYT-S cookie."
+      log "ERROR: NYT auth failed (HTTP $META_CODE)"
+      notify "Crossword ✗" "Cookie expired — re-export NYT-S" "Basso"
+      return 1
+    fi
+
+    if [[ $ATTEMPT -lt $MAX_ATTEMPTS ]]; then
+      log "Metadata fetch failed (HTTP $META_CODE, attempt $ATTEMPT/$MAX_ATTEMPTS), retrying in 30s..."
+      sleep 30
+    fi
+  done
+
+  if [[ -z "$PUZZLE_ID" ]]; then
+    push_step fetch error --error "Could not get puzzle ID after $MAX_ATTEMPTS attempts"
+    log "ERROR: Could not get puzzle ID"
+    return 1
+  fi
+
+  # Download the PDF
+  PDF_URL="https://www.nytimes.com/svc/crosswords/v2/puzzle/${PUZZLE_ID}.pdf"
+  if [[ "$DOW" == "7" ]] && ! $STANDARD_SUNDAY; then
+    PDF_URL="${PDF_URL}?large_print=true"
+  fi
+
+  PDF_HTTP=$(curl -s -w '\n%{http_code}' -o "$PDF_FILE" \
     -H "Cookie: $COOKIES" \
-    "https://www.nytimes.com/svc/crosswords/v6/puzzle/daily/${TODAY}.json")
-  META_CODE=$(echo "$META_HTTP" | tail -1)
-  META_BODY=$(echo "$META_HTTP" | sed '$d')
+    "$PDF_URL")
+  PDF_CODE=$(echo "$PDF_HTTP" | tail -1)
 
-  if [[ "$META_CODE" == "200" ]]; then
-    PUZZLE_ID=$(echo "$META_BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id', d.get('puzzle_id','')))" 2>/dev/null)
-    break
-  elif [[ "$META_CODE" == "401" || "$META_CODE" == "403" ]]; then
-    die "NYT auth failed (HTTP $META_CODE). Re-export NYT-S cookie from Chrome DevTools → Application → Cookies → nytimes.com."
+  if [[ "$PDF_CODE" != "200" ]]; then
+    push_step fetch error --error "PDF download failed (HTTP $PDF_CODE)"
+    log "ERROR: PDF download failed (HTTP $PDF_CODE)"
+    return 1
   fi
 
-  if [[ $ATTEMPT -lt $MAX_ATTEMPTS ]]; then
-    log "Metadata fetch failed (HTTP $META_CODE, attempt $ATTEMPT/$MAX_ATTEMPTS), retrying in 30s..."
-    sleep 30
+  FETCH_SIZE=$(stat -f%z "$PDF_FILE")
+
+  if ! head -c 4 "$PDF_FILE" | grep -q '%PDF'; then
+    push_step fetch error --error "Downloaded file is not a valid PDF"
+    log "ERROR: Downloaded file is not a valid PDF"
+    return 1
   fi
-done
 
-if [[ -z "$PUZZLE_ID" ]]; then
-  die "Could not get puzzle ID after $MAX_ATTEMPTS attempts"
-fi
-
-# Step 2: Download the PDF
-PDF_URL="https://www.nytimes.com/svc/crosswords/v2/puzzle/${PUZZLE_ID}.pdf"
-if [[ "$DOW" == "7" ]] && ! $STANDARD_SUNDAY; then
-  PDF_URL="${PDF_URL}?large_print=true"
-fi
-
-PDF_HTTP=$(curl -s -w '\n%{http_code}' -o "$PDF_FILE" \
-  -H "Cookie: $COOKIES" \
-  "$PDF_URL")
-PDF_CODE=$(echo "$PDF_HTTP" | tail -1)
-
-if [[ "$PDF_CODE" != "200" ]]; then
-  die "PDF download failed (HTTP $PDF_CODE) from $PDF_URL"
-fi
-
-FETCH_SIZE=$(stat -f%z "$PDF_FILE")
-log "Fetched PDF ($FETCH_SIZE bytes) from: $PDF_URL"
-
-# Verify it's a real PDF
-if ! head -c 4 "$PDF_FILE" | grep -q '%PDF'; then
-  die "Downloaded file is not a valid PDF."
-fi
-
-# --- Determine puzzle type ---
-PAGE_COUNT=$(python3 -c "
+  # Determine page count and puzzle type
+  PAGE_COUNT=$(python3 -c "
 from pypdf import PdfReader
 print(len(PdfReader('$PDF_FILE').pages))
 " 2>/dev/null || echo "0")
 
-log "PDF has $PAGE_COUNT page(s), DOW=$DOW"
+  if [[ "$DOW" == "7" ]]; then
+    if [[ "$PAGE_COUNT" -ge 2 ]]; then PUZZLE_TYPE="sunday"
+    else PUZZLE_TYPE="sunday-magazine"; fi
+  elif [[ "$DOW" == "6" ]]; then PUZZLE_TYPE="saturday"
+  else PUZZLE_TYPE="weekday"; fi
 
-# --- Determine puzzle type for status reporting ---
-if [[ "$DOW" == "7" ]]; then
-  if [[ "$PAGE_COUNT" -ge 2 ]]; then
-    PUZZLE_TYPE="sunday"
-  else
-    PUZZLE_TYPE="sunday-magazine"
+  log "Fetched PDF ($FETCH_SIZE bytes, $PAGE_COUNT pages, $PUZZLE_TYPE) from: $PDF_URL"
+  push_step fetch success --pdf-size "$FETCH_SIZE" --page-count "$PAGE_COUNT" \
+    --puzzle-id "$PUZZLE_ID" --puzzle-type "$PUZZLE_TYPE" --dow "$DOW"
+}
+
+# =============================================================================
+# STEP: REMARKABLE — upload to reMarkable tablet
+# =============================================================================
+do_remarkable() {
+  if [[ ! -f "$PDF_FILE" ]]; then
+    push_step remarkable error --error "No PDF found — fetch first"
+    log "ERROR: No PDF to upload to reMarkable"
+    return 1
   fi
-elif [[ "$DOW" == "6" ]]; then
-  PUZZLE_TYPE="saturday"
-else
-  PUZZLE_TYPE="weekday"
-fi
+
+  log "Uploading to reMarkable ($REMARKABLE_FOLDER)..."
+  push_step remarkable pending
+
+  if ! command -v rmapi >/dev/null 2>&1; then
+    push_step remarkable error --error "rmapi not found"
+    log "ERROR: rmapi not found"
+    return 1
+  fi
+
+  rmapi mkdir "$REMARKABLE_FOLDER" 2>/dev/null || true
+  RMAPI_OUT=$(rmapi put "$PDF_FILE" "$REMARKABLE_FOLDER" 2>&1) || true
+  if echo "$RMAPI_OUT" | grep -q "OK\|already exists"; then
+    log "Uploaded to reMarkable"
+    push_step remarkable success
+  else
+    push_step remarkable error --error "rmapi upload failed: $RMAPI_OUT"
+    log "ERROR: rmapi upload failed: $RMAPI_OUT"
+    return 1
+  fi
+}
 
 # =============================================================================
-# PREPARE — process PDF for printing (scaling, Sunday clue extraction, etc.)
-# Builds PRINT_FILES array: the list of PDFs to print in order.
+# STEP: PRINT — send to local printer or relay
 # =============================================================================
-PRINT_FILES=()
+do_print() {
+  if [[ ! -f "$PDF_FILE" ]]; then
+    push_step print error --error "No PDF found — fetch first"
+    log "ERROR: No PDF to print"
+    return 1
+  fi
 
-if [[ "$DOW" == "7" ]]; then
-  # -----------------------------------------------------------------------
-  # SUNDAY
-  # -----------------------------------------------------------------------
-  if [[ "$PAGE_COUNT" -ge 2 ]]; then
-    # Case 3: Normal Sunday — 2 pages (grid + clues)
-    # Print full PDF, then print clues page (page 2) again for second set
-    PUZZLE_TYPE="sunday"
-    log "Normal Sunday (2+ pages)"
-    PRINT_FILES+=("$PDF_FILE")
+  push_step print pending
 
-    PAGE2="$DOWNLOAD_DIR/crossword-$TODAY-clues.pdf"
-    python3 -c "
+  # Determine page count if not already set (for --step print retries)
+  if [[ -z "$PAGE_COUNT" ]]; then
+    PAGE_COUNT=$(python3 -c "
+from pypdf import PdfReader
+print(len(PdfReader('$PDF_FILE').pages))
+" 2>/dev/null || echo "0")
+  fi
+  if [[ -z "$DOW" ]]; then
+    DOW=$(date +"%u")
+  fi
+
+  # --- Prepare print files (scaling, Sunday clue extraction) ---
+  PRINT_FILES=()
+
+  if [[ "$DOW" == "7" ]]; then
+    if [[ "$PAGE_COUNT" -ge 2 ]]; then
+      PUZZLE_TYPE="sunday"
+      log "Normal Sunday (2+ pages)"
+      PRINT_FILES+=("$PDF_FILE")
+
+      PAGE2="$DOWNLOAD_DIR/crossword-$TODAY-clues.pdf"
+      python3 -c "
 from pypdf import PdfReader, PdfWriter
 reader = PdfReader('$PDF_FILE')
 writer = PdfWriter()
 writer.add_page(reader.pages[1])
 writer.write('$PAGE2')
 "
-    PRINT_FILES+=("$PAGE2")
-    log "Prepared Sunday puzzle (2 pages + extra clues)"
+      PRINT_FILES+=("$PAGE2")
+      log "Prepared Sunday puzzle (2 pages + extra clues)"
+    else
+      PUZZLE_TYPE="sunday-magazine"
+      log "Magazine-page Sunday detected (1 page) — running special handler"
+      MAGAZINE_OUTPUT="$DOWNLOAD_DIR/crossword-$TODAY-magazine.pdf"
 
-  else
-    # Case 4: Magazine Sunday — 1 page even with large_print
-    PUZZLE_TYPE="sunday-magazine"
-    log "Magazine-page Sunday detected (1 page) — running special handler"
-    MAGAZINE_OUTPUT="$DOWNLOAD_DIR/crossword-$TODAY-magazine.pdf"
+      MAGAZINE_LOG=$(python3 "$SCRIPT_DIR/magazine_sunday.py" "$PDF_FILE" "$MAGAZINE_OUTPUT" 2>&1) || true
+      log "magazine_sunday.py output: $MAGAZINE_LOG"
 
-    MAGAZINE_LOG=$(python3 "$SCRIPT_DIR/magazine_sunday.py" "$PDF_FILE" "$MAGAZINE_OUTPUT" 2>&1) || true
-    log "magazine_sunday.py output: $MAGAZINE_LOG"
-
-    if [[ -f "$MAGAZINE_OUTPUT" ]]; then
-      PRINT_FILES+=("$MAGAZINE_OUTPUT")
-
-      MAGAZINE_CLUES="$DOWNLOAD_DIR/crossword-$TODAY-magazine-clues.pdf"
-      python3 -c "
+      if [[ -f "$MAGAZINE_OUTPUT" ]]; then
+        PRINT_FILES+=("$MAGAZINE_OUTPUT")
+        MAGAZINE_CLUES="$DOWNLOAD_DIR/crossword-$TODAY-magazine-clues.pdf"
+        python3 -c "
 from pypdf import PdfReader, PdfWriter
 reader = PdfReader('$MAGAZINE_OUTPUT')
 if len(reader.pages) >= 2:
@@ -319,56 +370,43 @@ if len(reader.pages) >= 2:
         writer.add_page(reader.pages[i])
     writer.write('$MAGAZINE_CLUES')
 "
-      if [[ -f "$MAGAZINE_CLUES" ]]; then
-        PRINT_FILES+=("$MAGAZINE_CLUES")
-        log "Prepared magazine Sunday (grid + clue sheets)"
+        if [[ -f "$MAGAZINE_CLUES" ]]; then
+          PRINT_FILES+=("$MAGAZINE_CLUES")
+          log "Prepared magazine Sunday (grid + clue sheets)"
+        else
+          log "WARNING: Magazine output had only 1 page (clue extraction may have failed)"
+        fi
+        PDF_FILE="$MAGAZINE_OUTPUT"
       else
-        log "WARNING: Magazine output had only 1 page (clue extraction may have failed)"
-        notify "Crossword ⚠" "Sunday grid prepared but clue sheet missing" "Submarine"
+        log "WARNING: magazine_sunday.py failed, using original"
+        PRINT_FILES+=("$PDF_FILE")
       fi
-      PDF_FILE="$MAGAZINE_OUTPUT"
-    else
-      log "WARNING: magazine_sunday.py failed, using original"
-      notify "Crossword ⚠" "Magazine handler failed — using original PDF" "Submarine"
-      PRINT_FILES+=("$PDF_FILE")
     fi
+  else
+    SCALE_RESULT=$(scale_up_pdf "$PDF_FILE") && SCALED=true || SCALED=false
+    if $SCALED; then
+      PUZZLE_TYPE="facsimile"
+      log "Scale: $SCALE_RESULT"
+    fi
+    PRINT_FILES+=("$PDF_FILE")
   fi
 
-else
-  # -----------------------------------------------------------------------
-  # WEEKDAY / SATURDAY
-  # -----------------------------------------------------------------------
-  SCALE_RESULT=$(scale_up_pdf "$PDF_FILE") && SCALED=true || SCALED=false
-  if $SCALED; then
-    PUZZLE_TYPE="facsimile"
-    log "Scale: $SCALE_RESULT"
-  elif [[ "$DOW" == "6" ]]; then
-    PUZZLE_TYPE="saturday"
+  # --- Print or relay ---
+  if printer_reachable; then
+    log "Printing to $PRINTER_NAME..."
+    for f in "${PRINT_FILES[@]}"; do
+      print_pdf "$f"
+    done
+    log "Printed ${#PRINT_FILES[@]} file(s) (single-sided)"
+    push_step print success --print-method local
+    notify "Crossword ✓" "Puzzle printed" "Glass"
   else
-    PUZZLE_TYPE="weekday"
-  fi
-  PRINT_FILES+=("$PDF_FILE")
-fi
-
-# =============================================================================
-# PRINT or RELAY — send to local printer, or upload for remote relay
-# =============================================================================
-if $DRY_RUN; then
-  log "[DRY RUN] Would print ${#PRINT_FILES[@]} file(s) to $PRINTER_NAME (DOW=$DOW, pages=$PAGE_COUNT)"
-elif printer_reachable; then
-  log "Printing to $PRINTER_NAME..."
-  for f in "${PRINT_FILES[@]}"; do
-    print_pdf "$f"
-  done
-  log "Printed ${#PRINT_FILES[@]} file(s) (single-sided)"
-else
-  log "Printer not reachable — switching to relay mode"
-  # Combine all print files into one PDF for the relay
-  if [[ ${#PRINT_FILES[@]} -eq 1 ]]; then
-    RELAY_FILE="${PRINT_FILES[0]}"
-  else
-    RELAY_FILE="$DOWNLOAD_DIR/crossword-$TODAY-relay.pdf"
-    python3 -c "
+    log "Printer not reachable — switching to relay mode"
+    if [[ ${#PRINT_FILES[@]} -eq 1 ]]; then
+      RELAY_FILE="${PRINT_FILES[0]}"
+    else
+      RELAY_FILE="$DOWNLOAD_DIR/crossword-$TODAY-relay.pdf"
+      python3 -c "
 from pypdf import PdfReader, PdfWriter
 writer = PdfWriter()
 for path in '''${PRINT_FILES[*]}'''.split():
@@ -376,45 +414,59 @@ for path in '''${PRINT_FILES[*]}'''.split():
         writer.add_page(page)
 writer.write('$RELAY_FILE')
 "
-    log "Combined ${#PRINT_FILES[@]} files into relay PDF"
-  fi
-  relay_upload "$RELAY_FILE"
-  log "Uploaded relay PDF to GitHub"
-  push_status --date "$TODAY" --status print-relay --started-at "$START_TIME" \
-    --pdf-size "$FETCH_SIZE" --page-count "$PAGE_COUNT" --dow "$DOW" \
-    --puzzle-type "$PUZZLE_TYPE"
-  notify "Crossword ↗" "Printer unreachable — sent to relay for Briggs" "Submarine"
-fi
-
-# --- UPLOAD TO REMARKABLE ---
-if $DRY_RUN; then
-  log "[DRY RUN] Would upload to reMarkable: $REMARKABLE_FOLDER"
-else
-  log "Uploading to reMarkable ($REMARKABLE_FOLDER)..."
-  rmapi mkdir "$REMARKABLE_FOLDER" 2>/dev/null || true
-  rmapi put "$PDF_FILE" "$REMARKABLE_FOLDER"
-  log "Uploaded to reMarkable"
-fi
-
-# --- NOTIFY SUCCESS (only if we printed locally) ---
-if ! $DRY_RUN && printer_reachable; then
-  if [[ "$DOW" == "7" ]]; then
-    if [[ "$PAGE_COUNT" -ge 2 ]]; then
-      notify "Crossword ✓" "Sunday puzzle printed (2pp + 2x clues) and sent to reMarkable"
-    else
-      notify "Crossword ✓" "Magazine Sunday: grid + clue sheet printed and sent to reMarkable"
+      log "Combined ${#PRINT_FILES[@]} files into relay PDF"
     fi
+    relay_upload "$RELAY_FILE"
+    log "Uploaded relay PDF to GitHub"
+    push_step print success --print-method relay-waiting
+    notify "Crossword ↗" "Printer unreachable — sent to relay" "Submarine"
+  fi
+}
+
+# =============================================================================
+# MAIN — run requested steps
+# =============================================================================
+if [[ -n "$RUN_STEP" ]]; then
+  # Single step mode
+  log "Running step: $RUN_STEP"
+  case "$RUN_STEP" in
+    fetch)      do_fetch ;;
+    remarkable) do_remarkable ;;
+    print)      do_print ;;
+    *)          log "ERROR: Unknown step: $RUN_STEP"; exit 1 ;;
+  esac
+else
+  # Full run — all three steps, remarkable and print are independent
+  FETCH_OK=false
+  if $DRY_RUN; then
+    log "[DRY RUN] Would fetch, print, and upload"
+    exit 0
+  fi
+
+  if do_fetch; then
+    FETCH_OK=true
   else
-    notify "Crossword ✓" "Puzzle printed and sent to reMarkable"
+    log "Fetch failed — skipping remarkable and print"
+    notify "Crossword ✗" "Fetch failed — check status page" "Basso"
+  fi
+
+  if $FETCH_OK; then
+    # Run remarkable and print independently — one failing doesn't block the other
+    REMARKABLE_OK=true
+    PRINT_OK=true
+
+    do_remarkable || REMARKABLE_OK=false
+    do_print || PRINT_OK=false
+
+    if $REMARKABLE_OK && $PRINT_OK; then
+      log "Done! All steps succeeded."
+    else
+      $REMARKABLE_OK || log "WARNING: reMarkable upload failed"
+      $PRINT_OK || log "WARNING: Print failed"
+      log "Done (with warnings)."
+    fi
   fi
 fi
-
-# --- REPORT SUCCESS ---
-push_status --date "$TODAY" --status success --started-at "$START_TIME" \
-  --pdf-size "$FETCH_SIZE" --page-count "$PAGE_COUNT" --dow "$DOW" \
-  --puzzle-type "$PUZZLE_TYPE"
 
 # --- CLEANUP old downloads (keep 14 days) ---
 find "$DOWNLOAD_DIR" -name "*.pdf" -mtime +14 -delete 2>/dev/null || true
-
-log "Done!"

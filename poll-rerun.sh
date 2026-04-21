@@ -2,9 +2,8 @@
 # =============================================================================
 # poll-rerun.sh — Check GitHub for rerun requests and execute if needed
 #
-# Run via launchd every 5 minutes. Reads status.json from the repo,
-# compares rerun_requested_at with the last handled timestamp,
-# and runs nyt-crossword.sh if a new request is found.
+# Reads status.json, compares rerun_requested_at with last handled timestamp,
+# and runs the appropriate step of nyt-crossword.sh if a new request is found.
 # =============================================================================
 set -uo pipefail
 
@@ -44,7 +43,15 @@ if [[ "$RERUN_AT" == "$LAST_HANDLED" ]]; then
   exit 0
 fi
 
+# Get the step to retry
+RERUN_STEP=$(echo "$STATUS" | jq -r '.rerun_step // "all"')
+
 # New rerun request — execute
-log "Rerun requested at $RERUN_AT (last handled: ${LAST_HANDLED:-never})"
+log "Rerun requested at $RERUN_AT (step: $RERUN_STEP, last handled: ${LAST_HANDLED:-never})"
 echo "$RERUN_AT" > "$STATE_FILE"
-/bin/bash "$SCRIPT"
+
+if [[ "$RERUN_STEP" == "all" ]]; then
+  /bin/bash "$SCRIPT"
+else
+  /bin/bash "$SCRIPT" --step "$RERUN_STEP"
+fi
