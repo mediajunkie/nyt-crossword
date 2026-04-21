@@ -18,9 +18,10 @@
     "puzzle_id": "23889"
   },
   "print": {
-    "status": "pending",
-    "at": "2026-04-21T16:26:42Z",
-    "error": null
+    "status": "success",
+    "at": "2026-04-21T16:26:44Z",
+    "error": null,
+    "method": "local"
   },
   "remarkable": {
     "status": "success",
