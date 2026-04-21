@@ -10,9 +10,12 @@
   "error": null,
   "rerun_requested_at": null,
   "fetch": {
-    "status": "pending",
-    "at": "2026-04-21T16:23:52Z",
-    "error": null
+    "status": "success",
+    "at": "2026-04-21T16:23:54Z",
+    "error": null,
+    "pdf_size": 29571,
+    "page_count": 1,
+    "puzzle_id": "23889"
   },
   "print": {
     "status": "success",
