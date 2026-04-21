@@ -24,8 +24,8 @@
     "method": "local"
   },
   "remarkable": {
-    "status": "pending",
-    "at": "2026-04-21T16:24:19Z",
-    "error": null
+    "status": "error",
+    "at": "2026-04-21T16:24:21Z",
+    "error": "rmapi upload failed"
   }
 }
