@@ -19,8 +19,9 @@
     "error": null
   },
   "print": {
-    "status": "pending",
-    "at": "2026-04-22T13:31:03Z",
-    "error": null
+    "status": "success",
+    "at": "2026-04-22T13:31:24Z",
+    "error": null,
+    "method": "relay-waiting"
   }
 }
