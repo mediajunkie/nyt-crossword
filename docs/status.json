@@ -1,31 +1,12 @@
 {
-  "date": "2026-04-21",
-  "status": "success",
-  "started_at": "2026-04-21T16:26:32Z",
-  "finished_at": "2026-04-21T15:57:29Z",
-  "pdf_size": 29571,
-  "page_count": 1,
-  "dow": 2,
-  "puzzle_type": "weekday",
-  "error": null,
   "rerun_requested_at": null,
+  "rerun_step": null,
+  "date": "2026-04-22",
   "fetch": {
-    "status": "success",
-    "at": "2026-04-21T16:26:34Z",
-    "error": null,
-    "pdf_size": 29571,
-    "page_count": 1,
-    "puzzle_id": "23889"
-  },
-  "print": {
-    "status": "success",
-    "at": "2026-04-21T16:26:44Z",
-    "error": null,
-    "method": "local"
-  },
-  "remarkable": {
-    "status": "success",
-    "at": "2026-04-21T16:26:40Z",
+    "status": "pending",
+    "at": "2026-04-22T13:30:07Z",
     "error": null
-  }
+  },
+  "dow": 3,
+  "started_at": "2026-04-22T13:30:06Z"
 }
