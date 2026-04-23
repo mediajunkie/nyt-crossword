@@ -108,7 +108,9 @@ log() {
 }
 
 printer_reachable() {
-  ping -c1 -W2 "$PRINTER_IP" &>/dev/null
+  # Two pings with 3s timeout — the printer often drops the first
+  # packet when waking from sleep mode
+  ping -c2 -W3 "$PRINTER_IP" &>/dev/null
 }
 
 print_pdf() {

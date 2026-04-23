@@ -197,8 +197,12 @@ function toggleStep(el) {
   if (!wasExpanded) el.classList.add('expanded');
 }
 
-function stepClass(status) {
-  if (status === 'success') return 's-success';
+function stepClass(status, stepData) {
+  if (status === 'success') {
+    // relay-waiting isn't truly success from the user's perspective
+    if (stepData && stepData.method === 'relay-waiting') return 's-pending';
+    return 's-success';
+  }
   if (status === 'error') return 's-error';
   if (status === 'pending') return 's-pending';
   return 's-none';
@@ -230,8 +234,8 @@ function renderStep(name, label, stepData, canRun) {
     if (stepData.puzzle_id) parts.push('#' + stepData.puzzle_id);
     if (parts.length) details += parts.join(' \u00b7 ');
   }
-  if (name === 'print' && status === 'success' && stepData.method) {
-    const methods = { local: 'Local printer', 'relay-waiting': 'Sent to relay (waiting)', 'relay-printed': 'Printed via relay' };
+  if (name === 'print' && stepData.method) {
+    const methods = { local: 'Local printer', 'relay-waiting': 'Sent to relay \u2014 not yet printed', 'relay-printed': 'Printed via relay' };
     details += methods[stepData.method] || stepData.method;
   }
 
@@ -242,11 +246,13 @@ function renderStep(name, label, stepData, canRun) {
     if (hint) errorHtml += `<div class="hint">${hint}</div>`;
   }
 
-  const retryBtn = (status === 'error')
+  // Show retry on errors and on relay-waiting (not truly printed yet)
+  const needsRetry = status === 'error' || (name === 'print' && stepData.method === 'relay-waiting');
+  const retryBtn = needsRetry
     ? `<button class="btn" onclick="event.stopPropagation(); requestRerun('${name}')">Retry ${label}</button>`
     : '';
 
-  return `<div class="step ${stepClass(status)}" onclick="toggleStep(this)">
+  return `<div class="step ${stepClass(status, stepData)}" onclick="toggleStep(this)">
     <div class="step-header">
       <div class="step-left"><div class="dot"></div><span class="step-name">${label}</span></div>
       <span class="step-time">${time}</span>
