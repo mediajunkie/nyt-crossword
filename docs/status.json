@@ -11,7 +11,7 @@
     "puzzle_id": "23858"
   },
   "dow": 4,
-  "started_at": "2026-04-23T14:27:33Z",
+  "started_at": "2026-04-23T14:28:34Z",
   "puzzle_type": "weekday",
   "remarkable": {
     "status": "success",
@@ -19,9 +19,8 @@
     "error": null
   },
   "print": {
-    "status": "success",
-    "at": "2026-04-23T14:27:39Z",
-    "error": null,
-    "method": "relay-waiting"
+    "status": "pending",
+    "at": "2026-04-23T14:28:34Z",
+    "error": null
   }
 }
