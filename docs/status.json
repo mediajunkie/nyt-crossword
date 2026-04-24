@@ -14,9 +14,9 @@
   "started_at": "2026-04-24T14:54:15Z",
   "puzzle_type": "weekday",
   "remarkable": {
-    "status": "pending",
-    "at": "2026-04-24T14:54:15Z",
-    "error": null
+    "status": "error",
+    "at": "2026-04-24T14:54:20Z",
+    "error": "rmapi upload failed: uploading: [/Users/xian/.config/nyt-crossword/downloads/nyt-crossword-2026-04-24.pdf]...ERROR: 2026/04/24 07:54:20 main.go:85: Error:  Failed to upload file [/Users/xian/.config/nyt-crossword/downloads/nyt-crossword-2026-04-24.pdf] request failed with status 400"
   },
   "print": {
     "status": "success",
