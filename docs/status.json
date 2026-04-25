@@ -11,7 +11,7 @@
     "puzzle_id": "23853"
   },
   "dow": 6,
-  "started_at": "2026-04-25T13:30:04Z",
+  "started_at": "2026-04-25T14:17:18Z",
   "puzzle_type": "saturday",
   "remarkable": {
     "status": "error",
@@ -19,9 +19,8 @@
     "error": "rmapi upload failed: uploading: [/Users/xian/.config/nyt-crossword/downloads/nyt-crossword-2026-04-25.pdf]...ERROR: 2026/04/25 06:30:15 main.go:85: Error:  Failed to upload file [/Users/xian/.config/nyt-crossword/downloads/nyt-crossword-2026-04-25.pdf] request failed with status 400"
   },
   "print": {
-    "status": "success",
-    "at": "2026-04-25T13:30:19Z",
-    "error": null,
-    "method": "relay-waiting"
+    "status": "pending",
+    "at": "2026-04-25T14:17:18Z",
+    "error": null
   }
 }
