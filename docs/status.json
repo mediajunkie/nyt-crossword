@@ -19,8 +19,9 @@
     "error": "rmapi upload failed: uploading: [/Users/xian/.config/nyt-crossword/downloads/nyt-crossword-2026-04-25.pdf]...ERROR: 2026/04/25 06:30:15 main.go:85: Error:  Failed to upload file [/Users/xian/.config/nyt-crossword/downloads/nyt-crossword-2026-04-25.pdf] request failed with status 400"
   },
   "print": {
-    "status": "pending",
-    "at": "2026-04-25T14:17:18Z",
-    "error": null
+    "status": "success",
+    "at": "2026-04-25T14:17:22Z",
+    "error": null,
+    "method": "local"
   }
 }
