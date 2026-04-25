@@ -394,16 +394,25 @@ if len(reader.pages) >= 2:
   fi
 
   # --- Print or relay ---
-  if printer_reachable; then
-    log "Printing to $PRINTER_NAME..."
-    for f in "${PRINT_FILES[@]}"; do
-      print_pdf "$f"
-    done
+  # Try lpr directly — CUPS handles buffering/retries. Only fall back to
+  # relay if lpr itself fails (e.g. printer not configured at all).
+  # We previously used a ping check here, but it caused false relay triggers
+  # when the printer was sleeping at 6:30am.
+  log "Printing to $PRINTER_NAME..."
+  LPR_OK=true
+  for f in "${PRINT_FILES[@]}"; do
+    if ! print_pdf "$f"; then
+      LPR_OK=false
+      break
+    fi
+  done
+
+  if $LPR_OK; then
     log "Printed ${#PRINT_FILES[@]} file(s) (single-sided)"
     push_step print success --print-method local
     notify "Crossword ✓" "Puzzle printed" "Glass"
   else
-    log "Printer not reachable — switching to relay mode"
+    log "lpr failed — switching to relay mode"
     if [[ ${#PRINT_FILES[@]} -eq 1 ]]; then
       RELAY_FILE="${PRINT_FILES[0]}"
     else
