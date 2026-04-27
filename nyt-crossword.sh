@@ -9,7 +9,7 @@
 # Requirements:
 #   - curl
 #   - cookies.txt with valid NYT-S cookie (from Chrome DevTools → Application → Cookies)
-#   - rmapi (brew install io41/tap/rmapi) — authenticated
+#   - rmapi — built from PR #56 (v4 schema fix), installed at ~/.local/bin/rmapi
 #   - pypdf, reportlab, pdf2image, numpy (pip3 install pypdf reportlab pdf2image numpy)
 #   - poppler (brew install poppler) — for pdf2image
 #   - gh CLI (for status reporting to GitHub Pages)
@@ -292,14 +292,15 @@ do_remarkable() {
   log "Uploading to reMarkable ($REMARKABLE_FOLDER)..."
   push_step remarkable pending
 
-  if ! command -v rmapi >/dev/null 2>&1; then
+  RMAPI="$HOME/.local/bin/rmapi"
+  if [[ ! -x "$RMAPI" ]]; then
     push_step remarkable error --error "rmapi not found"
     log "ERROR: rmapi not found"
     return 1
   fi
 
-  rmapi mkdir "$REMARKABLE_FOLDER" 2>/dev/null || true
-  RMAPI_OUT=$(rmapi put "$PDF_FILE" "$REMARKABLE_FOLDER" 2>&1) || true
+  "$RMAPI" mkdir "$REMARKABLE_FOLDER" 2>/dev/null || true
+  RMAPI_OUT=$("$RMAPI" put "$PDF_FILE" "$REMARKABLE_FOLDER" 2>&1) || true
   if echo "$RMAPI_OUT" | grep -q "OK\|already exists"; then
     log "Uploaded to reMarkable"
     push_step remarkable success
