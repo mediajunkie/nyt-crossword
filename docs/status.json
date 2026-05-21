@@ -17,5 +17,10 @@
     "status": "error",
     "at": "2026-05-21T13:30:24Z",
     "error": "rmapi upload failed: ERROR: 2026/05/21 06:30:24 main.go:79: failed to build documents tree, last error: failed to mirror was not ok: request failed with status 400"
+  },
+  "print": {
+    "status": "pending",
+    "at": "2026-05-21T13:30:26Z",
+    "error": null
   }
 }
