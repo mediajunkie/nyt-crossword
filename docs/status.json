@@ -1,21 +1,12 @@
 {
   "rerun_requested_at": null,
   "rerun_step": null,
-  "date": "2026-06-20",
+  "date": "2026-06-21",
   "fetch": {
-    "status": "success",
-    "at": "2026-06-20T13:31:12Z",
-    "error": null,
-    "pdf_size": 29433,
-    "page_count": 1,
-    "puzzle_id": "24080"
-  },
-  "dow": 6,
-  "started_at": "2026-06-20T13:30:06Z",
-  "puzzle_type": "saturday",
-  "remarkable": {
-    "status": "success",
-    "at": "2026-06-20T13:31:40Z",
+    "status": "pending",
+    "at": "2026-06-21T13:30:04Z",
     "error": null
-  }
+  },
+  "dow": 7,
+  "started_at": "2026-06-21T13:30:04Z"
 }
