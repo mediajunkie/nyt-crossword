@@ -76,14 +76,28 @@ def extract_clues(pdf_path):
             title = line
             break
 
-    across_text = text[across_pos + len('ACROSS'):down_pos]
-    down_text = text[down_pos + len('DOWN'):]
+    def _strip_grid_rows(region):
+        """Drop lines that are only grid cell-numbers (two or more numbers,
+        no letters). The PDF text layer interleaves these in-grid numbers with
+        the clues, and on non-square layouts they can land *between* clue runs
+        rather than after them."""
+        return '\n'.join(
+            ln for ln in region.split('\n')
+            if not re.match(r'^\s*\d{1,3}(?:\s+\d{1,3})+\s*$', ln)
+        )
 
-    # Remove grid numbers and metadata from end of DOWN text
-    for pattern in [r'\d{1,3}\s+\d{1,3}\s+\d{1,3}\s+\d{1,3}\s+\d{1,3}', r'By [A-Z]', r'Play all']:
-        match = re.search(pattern, down_text)
-        if match:
-            down_text = down_text[:match.start()]
+    across_text = _strip_grid_rows(text[across_pos + len('ACROSS'):down_pos])
+    down_text = _strip_grid_rows(text[down_pos + len('DOWN'):])
+
+    # Excise editorial metadata (editor credit, byline, "Play all", author bio)
+    # from the DOWN region. We remove each block only up to the next clue
+    # boundary (or end of text) instead of truncating everything after it —
+    # otherwise a non-square grid, whose layout splits the DOWN clues into runs
+    # straddling the grid/metadata, would lose every clue after the first run.
+    down_text = re.sub(
+        r'(?:Puzzles\s+Edited by|Edited by|(?:^|\n)\s*By\s+[A-Z]|Play all)'
+        r'.*?(?=\n\s*\d{1,3}\s+\S|\Z)',
+        ' ', down_text, flags=re.DOTALL)
 
     def parse_clues(clue_text):
         """Parse numbered clues from text, handling multi-column PDF extraction."""
@@ -139,12 +153,18 @@ def extract_clues(pdf_path):
 def find_grid_bounds(img):
     """Auto-detect the puzzle grid boundaries in the rendered page image.
 
-    Uses a two-pass approach:
-    1. Find grid border lines via very-dark pixel density peaks (> 0.25).
-       Grid lines are much denser than text, so high thresholds isolate them.
-    2. Enforce square aspect ratio (crossword grids are always square).
-       Column detection may be too wide if clue text is nearby, so we use
-       the row extent as the definitive size and center the columns.
+    1. Find the grid's vertical extent from very-dark pixel density peaks.
+       Grid lines and black squares are far denser than clue text (which
+       renders as anti-aliased gray), so a high threshold isolates them.
+    2. Find the horizontal extent by measuring column density ONLY within
+       that vertical band — this keeps clue text above/below the grid from
+       diluting the signal and sharpens the left/right borders.
+    3. Trust the detected box for any plausible crossword aspect ratio
+       (square 21x21, tall, or wide themed grids alike). Crosswords are NOT
+       always square: themed Sundays can be tall or wide rectangles. Only
+       when the aspect is implausible — a sign detection failed or captured
+       stray clue text — fall back to a row-derived square centered on the
+       column cluster.
     """
     import numpy as np
     w, h = img.size
@@ -154,11 +174,9 @@ def find_grid_bounds(img):
     # Text is typically lighter than pure black grid elements
     vdark = arr < 30
 
-    row_d = vdark.sum(axis=1) / w
-    col_d = vdark.sum(axis=0) / h
-
     # Step 1: Find grid vertical extent using high-density rows
     # Grid border lines have density > 0.25; text rarely does
+    row_d = vdark.sum(axis=1) / w
     peak_rows = np.where(row_d > 0.25)[0]
     if len(peak_rows) < 5:
         peak_rows = np.where(row_d > 0.10)[0]
@@ -174,7 +192,10 @@ def find_grid_bounds(img):
         print(f"WARNING: Detected grid height too small ({grid_h}px, {grid_h*100/h:.0f}% of page)")
         return None
 
-    # Step 2: Find column extent using high-density columns
+    # Step 2: Find column extent, measuring density only within the grid's
+    # vertical band so clue text outside it can't pull the borders wide
+    band = vdark[top:bottom + 1, :]
+    col_d = band.sum(axis=0) / (bottom - top + 1)
     peak_cols = np.where(col_d > 0.25)[0]
     if len(peak_cols) < 5:
         peak_cols = np.where(col_d > 0.10)[0]
@@ -187,18 +208,22 @@ def find_grid_bounds(img):
     col_center = (col_left + col_right) / 2
     col_w = col_right - col_left
 
-    # Step 3: Enforce square aspect ratio (crossword grids are always square)
+    # Step 3: Accept the detected box for any plausible crossword shape.
+    # NYT grids are rectangles of square cells — usually 21x21, but themed
+    # Sundays can be tall (e.g. 15x21) or wide. An implausible aspect signals
+    # a detection problem (e.g. dark clue text captured to the side), in which
+    # case the reliable row extent defines a centered-square fallback.
+    MIN_ASPECT, MAX_ASPECT = 0.5, 2.0
     aspect = col_w / grid_h if grid_h > 0 else 0
-    if aspect < 0.85 or aspect > 1.15:
-        # Column detection too wide (captured clue text) or too narrow
-        # Use row extent as the definitive size
+    if MIN_ASPECT <= aspect <= MAX_ASPECT:
+        left = col_left
+        right = col_right
+        print(f"Detected grid aspect={aspect:.2f} (accepted) — cols {left}-{right}")
+    else:
         half = grid_h / 2
         left = max(0, int(col_center - half))
         right = min(w, int(col_center + half))
-        print(f"Enforced square: raw col aspect={aspect:.2f}, centered {left}-{right} on col midpoint {col_center:.0f}")
-    else:
-        left = col_left
-        right = col_right
+        print(f"Implausible aspect={aspect:.2f}; fell back to centered square {left}-{right} on col midpoint {col_center:.0f}")
 
     # Add small padding
     pad = int(min(w, h) * 0.005)
