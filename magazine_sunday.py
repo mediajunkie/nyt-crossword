@@ -22,6 +22,30 @@ from io import BytesIO
 from pdf2image import convert_from_path
 
 
+def _extract_blurb(meta_text):
+    """Pull the readable theme note / author bio out of the editorial metadata
+    the PDF interleaves with the clues.
+
+    Strips the editor credit, the byline, and the all-caps letterspaced title
+    line (e.g. "BIG DRA W", which the text layer mangles) so only the prose
+    blurb remains. Returns "" when there's nothing usable.
+    """
+    if not meta_text:
+        return ""
+    # Drop the leading editor-credit line ("Puzzles Edited by Will Shortz ...")
+    b = re.sub(r'^.*?(?:Puzzles\s+Edited by|Edited by)[^\n]*\n', '', meta_text, flags=re.DOTALL)
+    # Drop the trailing byline ("By <constructor>")
+    b = re.sub(r'\n\s*By\s+[A-Z].*$', '', b, flags=re.DOTALL)
+    lines = [ln.strip() for ln in b.split('\n') if ln.strip()]
+    # Drop trailing all-caps title line(s) — the blurb's prose is mixed-case
+    while lines and re.sub(r'[^A-Za-z]', '', lines[-1]) \
+            and re.sub(r'[^A-Za-z]', '', lines[-1]).isupper():
+        lines.pop()
+    blurb = re.sub(r'\s+', ' ', ' '.join(lines)).strip()
+    blurb = re.sub(r'\s+([,.;:!?])', r'\1', blurb)  # heal space-before-punctuation
+    return blurb
+
+
 def extract_clues(pdf_path):
     """Extract clue text from the PDF and parse into ACROSS and DOWN lists.
 
@@ -63,7 +87,7 @@ def extract_clues(pdf_path):
         print(f"WARNING: Could not find ACROSS/DOWN clue sections in text")
         print(f"  ACROSS candidates: {across_positions}")
         print(f"  DOWN candidates: {down_positions}")
-        return None, None, ""
+        return None, None, "", ""
 
     print(f"Found ACROSS at position {across_pos}, DOWN at position {down_pos}")
 
@@ -89,15 +113,18 @@ def extract_clues(pdf_path):
     across_text = _strip_grid_rows(text[across_pos + len('ACROSS'):down_pos])
     down_text = _strip_grid_rows(text[down_pos + len('DOWN'):])
 
-    # Excise editorial metadata (editor credit, byline, "Play all", author bio)
-    # from the DOWN region. We remove each block only up to the next clue
-    # boundary (or end of text) instead of truncating everything after it —
-    # otherwise a non-square grid, whose layout splits the DOWN clues into runs
-    # straddling the grid/metadata, would lose every clue after the first run.
-    down_text = re.sub(
+    # Capture, then excise, editorial metadata (editor credit, author bio,
+    # title, byline) from the DOWN region. We remove each block only up to the
+    # next clue boundary (or end of text) instead of truncating everything
+    # after it — otherwise a non-square grid, whose layout splits the DOWN
+    # clues into runs straddling the grid/metadata, would lose every clue after
+    # the first run. The captured text feeds the optional clue-sheet blurb.
+    meta_re = re.compile(
         r'(?:Puzzles\s+Edited by|Edited by|(?:^|\n)\s*By\s+[A-Z]|Play all)'
         r'.*?(?=\n\s*\d{1,3}\s+\S|\Z)',
-        ' ', down_text, flags=re.DOTALL)
+        flags=re.DOTALL)
+    blurb = _extract_blurb('\n'.join(meta_re.findall(down_text)))
+    down_text = meta_re.sub(' ', down_text)
 
     def parse_clues(clue_text):
         """Parse numbered clues from text, handling multi-column PDF extraction."""
@@ -147,7 +174,7 @@ def extract_clues(pdf_path):
     across_clues = parse_clues(across_text)
     down_clues = parse_clues(down_text)
 
-    return across_clues, down_clues, title
+    return across_clues, down_clues, title, blurb
 
 
 def find_grid_bounds(img):
@@ -306,7 +333,7 @@ def crop_puzzle_grid(input_pdf_path):
     return pdf_buffer.getvalue()
 
 
-def _build_clue_sheet(across_clues, down_clues, title="",
+def _build_clue_sheet(across_clues, down_clues, title="", blurb="",
                       font_size=8.5, leading=10.5, margin=0.4,
                       col_width=2.5, num_cols=3):
     """Build a clue sheet PDF with the given typesetting parameters.
@@ -346,10 +373,22 @@ def _build_clue_sheet(across_clues, down_clues, title="",
         fontName='Helvetica',
     )
 
+    blurb_style = ParagraphStyle(
+        'Blurb',
+        fontSize=8,
+        leading=10,
+        fontName='Helvetica-Oblique',
+        textColor=colors.HexColor('#444444'),
+        spaceAfter=6,
+    )
+
     elements = []
 
     if title:
         elements.append(Paragraph(title, title_style))
+    if blurb:
+        safe = blurb.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        elements.append(Paragraph(safe, blurb_style))
 
     def make_clue_table(clues, header_text):
         elements.append(Paragraph(header_text, section_style))
@@ -399,11 +438,14 @@ def _build_clue_sheet(across_clues, down_clues, title="",
     return pdf_bytes, page_count
 
 
-def create_clue_sheet(across_clues, down_clues, title=""):
+def create_clue_sheet(across_clues, down_clues, title="", blurb=""):
     """Create a compact clue sheet PDF with readable text.
 
     Uses an adaptive approach: tries the preferred layout first (8.5pt, 3-col),
     then falls back to tighter settings if the clues overflow to multiple pages.
+    The optional title/blurb are included as long as they still fit on one
+    page; if the blurb would force a second page even at the tightest layout,
+    it is dropped so the clues stay on a single sheet.
     """
     configs = [
         # Preferred: readable size
@@ -414,18 +456,26 @@ def create_clue_sheet(across_clues, down_clues, title=""):
         {"font_size": 7.0, "leading": 8.5, "margin": 0.3, "col_width": 1.9, "num_cols": 4},
     ]
 
-    for i, cfg in enumerate(configs):
-        pdf_bytes, pages = _build_clue_sheet(across_clues, down_clues, title=title, **cfg)
-        desc = f"{cfg['num_cols']}col {cfg['font_size']}pt/{cfg['leading']}pt"
-        if pages == 1:
-            print(f"Clue layout: {desc} — fits on 1 page")
-            return pdf_bytes
-        else:
+    # Prefer including the blurb; if nothing fits with it, retry without it.
+    last_bytes = last_pages = None
+    for use_blurb in ((True, False) if blurb else (False,)):
+        b = blurb if use_blurb else ""
+        for cfg in configs:
+            pdf_bytes, pages = _build_clue_sheet(
+                across_clues, down_clues, title=title, blurb=b, **cfg)
+            desc = (f"{cfg['num_cols']}col {cfg['font_size']}pt/{cfg['leading']}pt"
+                    f"{' +blurb' if use_blurb else ''}")
+            if pages == 1:
+                print(f"Clue layout: {desc} — fits on 1 page")
+                return pdf_bytes
             print(f"Clue layout: {desc} — {pages} pages (overflow), trying tighter...")
+            last_bytes, last_pages = pdf_bytes, pages
+        if use_blurb:
+            print("Blurb would force a second page — dropping it to keep clues on one sheet")
 
     # If nothing fits on 1 page, use the last (tightest) config
-    print(f"WARNING: Clues overflow even at tightest layout ({pages} pages)")
-    return pdf_bytes
+    print(f"WARNING: Clues overflow even at tightest layout ({last_pages} pages)")
+    return last_bytes
 
 
 def combine_pdfs(grid_pdf_bytes, clue_pdf_bytes, output_path):
@@ -446,17 +496,22 @@ def combine_pdfs(grid_pdf_bytes, clue_pdf_bytes, output_path):
 
 def main():
     if len(sys.argv) < 3:
-        print(f"Usage: {sys.argv[0]} input.pdf output.pdf")
+        print(f"Usage: {sys.argv[0]} input.pdf output.pdf [title]")
         sys.exit(1)
 
     input_pdf = sys.argv[1]
     output_pdf = sys.argv[2]
+    # Optional clean title from the caller (e.g. the NYT metadata JSON), which
+    # beats the letterspaced title the PDF text layer mangles.
+    title_override = sys.argv[3].strip() if len(sys.argv) > 3 else ""
 
     print(f"Processing magazine-page Sunday crossword: {input_pdf}")
 
     # Extract clues
     print("Extracting clues...")
-    across, down, title = extract_clues(input_pdf)
+    across, down, title, blurb = extract_clues(input_pdf)
+    if title_override:
+        title = title_override
     if across:
         print(f"  Found {len(across)} ACROSS clues, {len(down)} DOWN clues")
         across_nums = [c[0] for c in across]
@@ -472,8 +527,8 @@ def main():
 
     # Create formatted clue sheet
     if across and down:
-        print(f"Creating clue sheet (title: '{title}')...")
-        clue_pdf = create_clue_sheet(across, down, title=title)
+        print(f"Creating clue sheet (title: '{title}', blurb: {len(blurb)} chars)...")
+        clue_pdf = create_clue_sheet(across, down, title=title, blurb=blurb)
         print("Combining grid + clue sheet...")
         combine_pdfs(grid_pdf, clue_pdf, output_pdf)
     else:

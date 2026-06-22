@@ -38,8 +38,8 @@ DOWNLOAD_DIR="$CONFIG_DIR/downloads"
 REMARKABLE_FOLDER="/xwords"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Printer config
-PRINTER_NAME="${NYT_CROSSWORD_PRINTER:-Brother_HL_L3270CDW_series}"
+# Printer config — env var wins, else the name setup.sh saved, else the default
+PRINTER_NAME="${NYT_CROSSWORD_PRINTER:-$(cat "$CONFIG_DIR/printer_name.txt" 2>/dev/null || echo Brother_HL_L3270CDW_series)}"
 PRINTER_IP="192.168.4.54"
 
 # Relay config
@@ -83,6 +83,7 @@ PDF_FILE="$DOWNLOAD_DIR/$FILENAME"
 START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 PUZZLE_TYPE=""
 PUZZLE_ID=""
+PUZZLE_TITLE=""
 FETCH_SIZE=""
 PAGE_COUNT=""
 
@@ -217,6 +218,9 @@ do_fetch() {
 
     if [[ "$META_CODE" == "200" ]]; then
       PUZZLE_ID=$(echo "$META_BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id', d.get('puzzle_id','')))" 2>/dev/null)
+      # Clean puzzle title (e.g. "Big Draw") for the magazine clue sheet —
+      # far more reliable than the letterspaced title in the PDF text layer.
+      PUZZLE_TITLE=$(echo "$META_BODY" | python3 -c "import sys,json; print(json.load(sys.stdin).get('title',''))" 2>/dev/null)
       break
     elif [[ "$META_CODE" == "401" || "$META_CODE" == "403" ]]; then
       push_step fetch error --error "NYT auth failed (HTTP $META_CODE). Re-export NYT-S cookie."
@@ -358,7 +362,7 @@ writer.write('$PAGE2')
       log "Magazine-page Sunday detected (1 page) — running special handler"
       MAGAZINE_OUTPUT="$DOWNLOAD_DIR/crossword-$TODAY-magazine.pdf"
 
-      MAGAZINE_LOG=$(python3 "$SCRIPT_DIR/magazine_sunday.py" "$PDF_FILE" "$MAGAZINE_OUTPUT" 2>&1) || true
+      MAGAZINE_LOG=$(python3 "$SCRIPT_DIR/magazine_sunday.py" "$PDF_FILE" "$MAGAZINE_OUTPUT" "${PUZZLE_TITLE:-}" 2>&1) || true
       log "magazine_sunday.py output: $MAGAZINE_LOG"
 
       if [[ -f "$MAGAZINE_OUTPUT" ]]; then

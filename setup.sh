@@ -20,10 +20,9 @@ echo ""
 # --- Step 1: Create directories ---
 echo "→ Creating directories..."
 mkdir -p "$CONFIG_DIR/downloads"
-mkdir -p "$BIN_DIR"
 mkdir -p "$LAUNCH_AGENTS"
-echo "  ✓ Config: $CONFIG_DIR"
-echo "  ✓ Scripts: $BIN_DIR"
+echo "  ✓ Config:  $CONFIG_DIR"
+echo "  ✓ Scripts: $SCRIPT_DIR (run in place)"
 echo ""
 
 # --- Step 2: Check Homebrew ---
@@ -120,26 +119,25 @@ else
 fi
 echo ""
 
-# --- Step 8: Install the script ---
-echo "→ Installing crossword script..."
-cp "$SCRIPT_DIR/nyt-crossword.sh" "$BIN_DIR/nyt-crossword.sh"
-chmod +x "$BIN_DIR/nyt-crossword.sh"
-
-# Patch the printer name into the script if we have one
-if [[ -n "${BROTHER:-}" ]]; then
-  sed -i '' "s|PRINTER_NAME=\"\${NYT_CROSSWORD_PRINTER:-}\"|PRINTER_NAME=\"\${NYT_CROSSWORD_PRINTER:-$BROTHER}\"|" "$BIN_DIR/nyt-crossword.sh"
-fi
-
-echo "✓ Installed to $BIN_DIR/nyt-crossword.sh"
+# --- Step 8: Prepare the script (runs in place from this checkout) ---
+# The handler resolves its siblings (magazine_sunday.py, update-status.sh,
+# cookies.txt) relative to its own directory, so it must run from the checkout
+# rather than a lone copy in ~/.local/bin. The chosen printer is read from
+# printer_name.txt at runtime (written above), so no script patching is needed.
+echo "→ Preparing crossword script..."
+chmod +x "$SCRIPT_DIR/nyt-crossword.sh"
+echo "✓ Script ready at $SCRIPT_DIR/nyt-crossword.sh"
 echo ""
 
-# --- Step 9: Install launchd plist ---
+# --- Step 9: Install launchd plist (pointed at this checkout) ---
 echo "→ Installing launch agent..."
-cp "$SCRIPT_DIR/com.xian.nyt-crossword.plist" "$LAUNCH_AGENTS/"
+# Rewrite the template's program path to wherever this repo actually lives.
+sed "s|/Users/xian/Development/nyt-crossword/nyt-crossword.sh|$SCRIPT_DIR/nyt-crossword.sh|g" \
+  "$SCRIPT_DIR/com.xian.nyt-crossword.plist" > "$LAUNCH_AGENTS/com.xian.nyt-crossword.plist"
 
 launchctl unload "$LAUNCH_AGENTS/com.xian.nyt-crossword.plist" 2>/dev/null || true
 launchctl load "$LAUNCH_AGENTS/com.xian.nyt-crossword.plist"
-echo "✓ Launch agent installed (runs daily at 6:30am)"
+echo "✓ Launch agent installed (runs daily at 6:30am from $SCRIPT_DIR)"
 echo ""
 
 # --- Step 10: Test run ---
@@ -168,8 +166,8 @@ echo "================================================"
 echo "  All done!"
 echo ""
 echo "  Daily schedule: 6:30am via launchd"
-echo "  Manual run:     nyt-crossword.sh"
-echo "  Dry run:        nyt-crossword.sh --dry-run"
-echo "  Specific date:  nyt-crossword.sh 2026-02-15"
+echo "  Manual run:     $SCRIPT_DIR/nyt-crossword.sh"
+echo "  Dry run:        $SCRIPT_DIR/nyt-crossword.sh --dry-run"
+echo "  Specific date:  $SCRIPT_DIR/nyt-crossword.sh 2026-02-15"
 echo "  Logs:           $CONFIG_DIR/crossword.log"
 echo "================================================"

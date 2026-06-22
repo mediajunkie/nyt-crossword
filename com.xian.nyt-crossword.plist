@@ -5,10 +5,13 @@
     <key>Label</key>
     <string>com.xian.nyt-crossword</string>
 
+    <!-- Run the script in place from the repo checkout: it resolves siblings
+         (magazine_sunday.py, update-status.sh, cookies.txt) via its own dir.
+         setup.sh rewrites this path to the actual checkout location. -->
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/xian/.local/bin/nyt-crossword.sh</string>
+        <string>/Users/xian/Development/nyt-crossword/nyt-crossword.sh</string>
     </array>
 
     <!-- Run at 6:30am daily. Puzzles publish 10pm ET night before (6pm Sat for Sun). -->
@@ -20,11 +23,14 @@
         <integer>30</integer>
     </dict>
 
-    <!-- Ensure PATH includes Homebrew so rmapi, python3, etc. are found -->
+    <!-- Ensure PATH includes Homebrew so rmapi, python3, etc. are found,
+         and HOME is set since launchd agents don't inherit it reliably. -->
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/xian</string>
     </dict>
 
     <key>StandardOutPath</key>
