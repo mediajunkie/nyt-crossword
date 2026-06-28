@@ -17,5 +17,11 @@
     "status": "success",
     "at": "2026-06-28T13:30:16Z",
     "error": null
+  },
+  "print": {
+    "status": "success",
+    "at": "2026-06-28T13:30:19Z",
+    "error": null,
+    "method": "local"
   }
 }
