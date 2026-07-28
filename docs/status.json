@@ -14,9 +14,9 @@
   "started_at": "2026-07-28T15:56:00Z",
   "puzzle_type": "weekday",
   "remarkable": {
-    "status": "pending",
-    "at": "2026-07-28T15:56:03Z",
-    "error": null
+    "status": "error",
+    "at": "2026-07-28T15:56:05Z",
+    "error": "rmapi not found"
   },
   "print": {
     "status": "success",
