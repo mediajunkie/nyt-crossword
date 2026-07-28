@@ -19,8 +19,9 @@
     "error": "rmapi not found"
   },
   "print": {
-    "status": "pending",
-    "at": "2026-07-28T15:56:06Z",
-    "error": null
+    "status": "success",
+    "at": "2026-07-28T15:56:07Z",
+    "error": null,
+    "method": "local"
   }
 }
