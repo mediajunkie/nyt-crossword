@@ -3,15 +3,12 @@
   "rerun_step": null,
   "date": "2026-07-28",
   "fetch": {
-    "status": "success",
-    "at": "2026-07-28T15:53:42Z",
-    "error": null,
-    "pdf_size": 29402,
-    "page_count": 0,
-    "puzzle_id": "24249"
+    "status": "pending",
+    "at": "2026-07-28T15:56:00Z",
+    "error": null
   },
   "dow": 2,
-  "started_at": "2026-07-28T15:53:39Z",
+  "started_at": "2026-07-28T15:56:00Z",
   "puzzle_type": "weekday",
   "remarkable": {
     "status": "pending",
