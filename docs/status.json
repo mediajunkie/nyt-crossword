@@ -12,5 +12,10 @@
   },
   "dow": 2,
   "started_at": "2026-07-28T15:53:39Z",
-  "puzzle_type": "weekday"
+  "puzzle_type": "weekday",
+  "remarkable": {
+    "status": "pending",
+    "at": "2026-07-28T15:53:43Z",
+    "error": null
+  }
 }
