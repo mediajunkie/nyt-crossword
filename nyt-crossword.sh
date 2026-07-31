@@ -116,7 +116,19 @@ printer_reachable() {
 
 print_pdf() {
   local file="$1"
-  lpr -P "$PRINTER_NAME" -o sides=one-sided -o fit-to-page "$file"
+  # Pre-scale to Letter before printing (Pard, 2026-07-31, Amber migration fix — Inker: see
+  # docs/memo-pard-to-inker-amber-migration-2026-07-29.md). The NYT PDF is ~410x631pt; the laptop's
+  # Brother VENDOR driver enlarged it Mac-side, but Amber's IPP-Everywhere queue defers scaling to
+  # printer FIRMWARE, whose "fit" is shrink-only -> small inset print. Ghostscript makes the output
+  # deterministic and firmware-independent. Falls back to the old path if gs is absent.
+  if command -v gs >/dev/null 2>&1; then
+    local scaled="${file%.pdf}-letter.pdf"
+    if gs -q -o "$scaled" -sDEVICE=pdfwrite -dFIXEDMEDIA -dPDFFitPage \
+         -dDEVICEWIDTHPOINTS=612 -dDEVICEHEIGHTPOINTS=792 "$file" 2>/dev/null && [ -s "$scaled" ]; then
+      file="$scaled"
+    fi
+  fi
+  lpr -P "$PRINTER_NAME" -o sides=one-sided "$file"
 }
 
 relay_upload() {
