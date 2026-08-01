@@ -121,10 +121,20 @@ print_pdf() {
   # Brother VENDOR driver enlarged it Mac-side, but Amber's IPP-Everywhere queue defers scaling to
   # printer FIRMWARE, whose "fit" is shrink-only -> small inset print. Ghostscript makes the output
   # deterministic and firmware-independent. Falls back to the old path if gs is absent.
+  # Scale to the printer's IMAGEABLE AREA, not the paper size. Measured from the PPD
+  # (*ImageableArea Letter: 12.25 12.25 599.75 779.75) — this Brother cannot print within
+  # ~12.25pt of any edge in hardware. Fitting to the full 612x792 sheet therefore clipped
+  # the clue edges (2026-08-01). Two stages: fit content into an inset box, then place it
+  # on Letter with a matching PageOffset. Verify changes by measuring, not by printing:
+  #   gs -q -o /dev/null -sDEVICE=bbox out.pdf   -> bbox must sit inside 12.25..599.75 / 12.25..779.75
   if command -v gs >/dev/null 2>&1; then
-    local scaled="${file%.pdf}-letter.pdf"
-    if gs -q -o "$scaled" -sDEVICE=pdfwrite -dFIXEDMEDIA -dPDFFitPage \
-         -dDEVICEWIDTHPOINTS=612 -dDEVICEHEIGHTPOINTS=792 "$file" 2>/dev/null && [ -s "$scaled" ]; then
+    local staged="${file%.pdf}-fit.pdf" scaled="${file%.pdf}-letter.pdf"
+    if gs -q -o "$staged" -sDEVICE=pdfwrite -dFIXEDMEDIA -dPDFFitPage \
+         -dDEVICEWIDTHPOINTS=575 -dDEVICEHEIGHTPOINTS=755 "$file" 2>/dev/null \
+       && gs -q -o "$scaled" -sDEVICE=pdfwrite -dFIXEDMEDIA \
+            -dDEVICEWIDTHPOINTS=612 -dDEVICEHEIGHTPOINTS=792 \
+            -c "<</PageOffset [18.5 18.5]>> setpagedevice" -f "$staged" 2>/dev/null \
+       && [ -s "$scaled" ]; then
       file="$scaled"
     fi
   fi
