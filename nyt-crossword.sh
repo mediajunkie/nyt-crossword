@@ -403,11 +403,14 @@ if len(reader.pages) >= 2:
           PRINT_FILES+=("$MAGAZINE_CLUES")
           log "Prepared magazine Sunday (grid + clue sheets)"
         else
-          log "WARNING: Magazine output had only 1 page (clue extraction may have failed)"
+          log "WARNING: Magazine output had only 1 page — clue extraction found no ACROSS/DOWN text."
+          log "WARNING: This Sunday's PDF may carry clues as IMAGE data rather than text (observed 2026-08-02: 461 chars extracted, zero clue markers). If this recurs, the handler needs an image-crop fallback."
+          DEGRADED=1
         fi
         PDF_FILE="$MAGAZINE_OUTPUT"
       else
         log "WARNING: magazine_sunday.py failed, using original"
+        DEGRADED=1
         PRINT_FILES+=("$PDF_FILE")
       fi
     fi
@@ -497,7 +500,11 @@ else
     do_print || PRINT_OK=false
 
     if $REMARKABLE_OK && $PRINT_OK; then
-      log "Done! All steps succeeded."
+      if [[ "${DEGRADED:-0}" == "1" ]]; then
+  log "Done — COMPLETED WITH WARNINGS (see WARNING lines above; output is degraded, not nominal)."
+else
+  log "Done! All steps succeeded."
+fi
     else
       $REMARKABLE_OK || log "WARNING: reMarkable upload failed"
       $PRINT_OK || log "WARNING: Print failed"
