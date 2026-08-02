@@ -3,9 +3,9 @@
   "rerun_step": null,
   "date": "2026-08-02",
   "fetch": {
-    "status": "pending",
-    "at": "2026-08-02T13:30:05Z",
-    "error": null
+    "status": "error",
+    "at": "2026-08-02T13:30:07Z",
+    "error": "Cookie file not found at /Users/xian/Development/nyt-crossword/cookies.txt"
   },
   "dow": 7,
   "started_at": "2026-08-02T13:30:05Z"
