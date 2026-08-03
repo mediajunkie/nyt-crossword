@@ -1,24 +1,12 @@
 {
   "rerun_requested_at": null,
   "rerun_step": null,
-  "date": "2026-08-02",
+  "date": "2026-08-03",
   "fetch": {
-    "status": "error",
-    "at": "2026-08-02T13:30:07Z",
-    "error": "Cookie file not found at /Users/xian/Development/nyt-crossword/cookies.txt"
-  },
-  "dow": 7,
-  "started_at": "2026-08-02T13:30:05Z",
-  "remarkable": {
-    "status": "success",
-    "at": "2026-08-02T13:30:14Z",
+    "status": "pending",
+    "at": "2026-08-03T13:30:00Z",
     "error": null
   },
-  "puzzle_type": "sunday-magazine",
-  "print": {
-    "status": "success",
-    "at": "2026-08-02T13:30:17Z",
-    "error": null,
-    "method": "local"
-  }
+  "dow": 1,
+  "started_at": "2026-08-03T13:30:00Z"
 }
