@@ -8,10 +8,10 @@
     "error": "Cookie file not found at /Users/xian/Development/nyt-crossword/cookies.txt"
   },
   "dow": 3,
-  "started_at": "2026-08-05T13:30:05Z",
+  "started_at": "2026-08-05T13:30:01Z",
   "remarkable": {
-    "status": "pending",
-    "at": "2026-08-05T13:30:04Z",
+    "status": "success",
+    "at": "2026-08-05T13:30:11Z",
     "error": null
   },
   "puzzle_type": "weekday"
