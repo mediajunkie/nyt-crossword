@@ -10,8 +10,8 @@
   "dow": 4,
   "started_at": "2026-08-06T13:30:05Z",
   "remarkable": {
-    "status": "pending",
-    "at": "2026-08-06T13:30:08Z",
+    "status": "success",
+    "at": "2026-08-06T13:30:15Z",
     "error": null
   },
   "puzzle_type": "weekday"
