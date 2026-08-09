@@ -8,5 +8,11 @@
     "error": null
   },
   "dow": 7,
-  "started_at": "2026-08-09T13:30:01Z"
+  "started_at": "2026-08-09T13:30:01Z",
+  "remarkable": {
+    "status": "pending",
+    "at": "2026-08-09T13:30:03Z",
+    "error": null
+  },
+  "puzzle_type": "sunday"
 }
