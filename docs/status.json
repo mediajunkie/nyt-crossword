@@ -1,26 +1,12 @@
 {
   "rerun_requested_at": null,
   "rerun_step": null,
-  "date": "2026-08-17",
+  "date": "2026-08-18",
   "fetch": {
-    "status": "success",
-    "at": "2026-08-17T13:30:07Z",
-    "error": null,
-    "pdf_size": 47200,
-    "page_count": 1,
-    "puzzle_id": "24319"
-  },
-  "dow": 1,
-  "started_at": "2026-08-17T13:30:05Z",
-  "puzzle_type": "weekday",
-  "remarkable": {
-    "status": "error",
-    "at": "2026-08-17T13:30:15Z",
-    "error": "rmapi upload failed: uploading: [/Users/xian/.config/nyt-crossword/downloads/nyt-crossword-2026-08-17.pdf]...ERROR: 2026/08/17 06:30:14 main.go:86: Error:  failed to upload file [/Users/xian/.config/nyt-crossword/downloads/nyt-crossword-2026-08-17.pdf] request failed with status 400"
-  },
-  "print": {
     "status": "pending",
-    "at": "2026-08-17T13:30:16Z",
+    "at": "2026-08-18T13:30:04Z",
     "error": null
-  }
+  },
+  "dow": 2,
+  "started_at": "2026-08-18T13:30:04Z"
 }
