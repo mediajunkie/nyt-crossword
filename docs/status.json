@@ -12,15 +12,16 @@
   },
   "dow": 3,
   "started_at": "2026-08-19T13:30:02Z",
-  "puzzle_type": "weekday",
+  "puzzle_type": "facsimile",
   "remarkable": {
     "status": "error",
     "at": "2026-08-19T13:30:36Z",
     "error": "rmapi upload failed: uploading: [/Users/xian/.config/nyt-crossword/downloads/nyt-crossword-2026-08-19.pdf]...ERROR: 2026/08/19 06:30:36 main.go:86: Error:  failed to upload file [/Users/xian/.config/nyt-crossword/downloads/nyt-crossword-2026-08-19.pdf] request failed with status 400"
   },
   "print": {
-    "status": "pending",
-    "at": "2026-08-19T13:30:37Z",
-    "error": null
+    "status": "success",
+    "at": "2026-08-19T13:30:41Z",
+    "error": null,
+    "method": "local"
   }
 }
