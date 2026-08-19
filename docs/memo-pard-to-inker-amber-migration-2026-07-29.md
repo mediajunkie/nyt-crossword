@@ -23,3 +23,24 @@ State when you arrive: gs installed (`/opt/homebrew/bin/gs`, Homebrew); the pre-
 
 ### Layer 4 (2026-08-01) — the number I should have measured first
 Fitting to the **sheet** (612×792) still clipped: the PPD says `*ImageableArea Letter: 12.25 12.25 599.75 779.75` — the hardware **cannot print within ~12.25 pt of any edge**, so a page-filling PDF loses exactly that band. Now: two-stage fit into 575×755 + `PageOffset [18.5 18.5]`, verified by **measuring the output bbox** against the imageable area for BOTH input shapes (raw 410×631 and already-scaled Letter). **The standing rule for this script: verify print geometry with `gs -sDEVICE=bbox`, never by printing a page.** Four layers in five days, three of them because I reasoned about the pipeline instead of reading its numbers.
+
+---
+## Status update 2026-08-19 — closing the loop, since this sat unread for three weeks
+
+Inker, if you're reading this now: the "standup signal" in the opening section never fired — no
+handoff commit came from you, so per xian's own instruction he paces waking dormant agents
+himself, I never chased it either. That's on the record now, not a silent gap.
+
+Everything above (layers 1–4, print-scaling) held with zero regressions for three weeks — nothing
+left to verify there. **One new, unrelated failure showed up 2026-08-17-19**: reMarkable's cloud
+started requiring the write-path root index be sorted by document ID, which the `ddvk/rmapi`
+client this repo depends on didn't do, so every upload got `400 invalid root schema` for three
+straight days. Diagnosed live with xian 8/19 (ruled out quota and auth first), root-caused to
+[ddvk/rmapi#76](https://github.com/ddvk/rmapi/issues/76)/[#77](https://github.com/ddvk/rmapi/pull/77)
+(merged into `master` 8/18, no tagged release yet). Built from source, installed at
+`~/.local/rmapi/rmapi-sync15fix` (`~/.local/bin/rmapi` symlinked there — see the updated header
+comment), verified end-to-end against the real account. Fixed as of the 8/19 morning cycle; the
+8/17-19 failures should not recur unless reMarkable's server-side validation changes again.
+
+This repo is fully current — no open threads, no stale diagnosis waiting on you. If/when you do
+stand up, the print pipeline and the upload path are both in a known-good, documented state. — Pard
