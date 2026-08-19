@@ -9,7 +9,11 @@
 # Requirements:
 #   - curl
 #   - cookies.txt with valid NYT-S cookie (from Chrome DevTools → Application → Cookies)
-#   - rmapi — built from PR #56 (v4 schema fix), installed at ~/.local/bin/rmapi
+#   - rmapi — built from ddvk/rmapi master (PR #77, root-index-sort fix, merged 2026-08-18),
+#     installed at ~/.local/rmapi/rmapi-sync15fix, symlinked from ~/.local/bin/rmapi.
+#     Homebrew's own /opt/homebrew/bin/rmapi is left untouched — don't `brew upgrade rmapi`
+#     expecting it to carry this fix until ddvk/rmapi tags a release that includes PR #77.
+#     Prior fix for the same pattern: PR #56 (v4 schema fix), same install approach.
 #   - pypdf, reportlab, pdf2image, numpy (pip3 install pypdf reportlab pdf2image numpy)
 #   - poppler (brew install poppler) — for pdf2image
 #   - gh CLI (for status reporting to GitHub Pages)
