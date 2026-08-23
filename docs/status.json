@@ -16,8 +16,9 @@
   },
   "puzzle_type": "sunday",
   "print": {
-    "status": "pending",
-    "at": "2026-08-23T13:30:17Z",
-    "error": null
+    "status": "success",
+    "at": "2026-08-23T13:30:19Z",
+    "error": null,
+    "method": "local"
   }
 }
