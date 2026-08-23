@@ -44,3 +44,21 @@ comment), verified end-to-end against the real account. Fixed as of the 8/19 mor
 
 This repo is fully current — no open threads, no stale diagnosis waiting on you. If/when you do
 stand up, the print pipeline and the upload path are both in a known-good, documented state. — Pard
+
+### Layer 5 (2026-08-23) — and the general principle xian named
+
+NYT flipped the Sunday large-print export to landscape (first time in a year of archived samples —
+verified against 9 Sundays: 4 local, 5 pulled from the reMarkable cloud, all previously portrait).
+The gs pipeline mishandled the rotated intermediate (content pushed past the imageable edge,
+Down-clues tail hardware-clipped); fixed with pypdf portrait normalization + `-dAutoRotatePages=/None`
+on both stages, verified by bbox on all three known input shapes. See the commit for mechanics.
+
+**The durable lesson (xian's framing): the laptop-era vendor driver was an adaptive layer that
+silently absorbed input variations; the deterministic pipeline that replaced it surfaces every
+unhandled variation as a visible failure.** That's the better trade — today's break took minutes
+to diagnose *because* the pipeline is deterministic and measurable — but it means the catalog of
+input shapes is now ours to own. Expect more first-arrival breaks whenever NYT varies the export
+(new page sizes, new pagination, orientation flips back), and treat each as: measure, add the
+shape to the verified set, regression-check the old shapes byte-for-byte. Never "fix" by
+reinstalling the adaptive layer — that just trades visible, diagnosable failures for silent,
+undiagnosable ones.
