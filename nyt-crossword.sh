@@ -131,11 +131,41 @@ print_pdf() {
   # the clue edges (2026-08-01). Two stages: fit content into an inset box, then place it
   # on Letter with a matching PageOffset. Verify changes by measuring, not by printing:
   #   gs -q -o /dev/null -sDEVICE=bbox out.pdf   -> bbox must sit inside 12.25..599.75 / 12.25..779.75
+  # Landscape sources must be normalized to portrait FIRST (2026-08-23: NYT flipped the Sunday
+  # export to landscape 792x612 — 8/16 was portrait, 8/23 wasn't). Without this, gs auto-rotation
+  # left /Rotate 270 on the intermediate and stage 2's PageOffset then pushed content flush to the
+  # sheet's right edge (bbox x=612.0, past the 599.75 imageable limit) — hardware clipped the tail
+  # of the Down clues. Both gs stages also pin -dAutoRotatePages=/None: pdfwrite's DEFAULT is
+  # /PageByPage, which re-rotates output by dominant TEXT orientation and silently undoes the
+  # normalization (measured: portrait-baked input still came out /Rotate 270 without the pin).
+  # Verified 2026-08-23 by bbox on all three shapes: landscape Sunday now 44.2-582.8 x 44.2-747.8
+  # (inside imageable); weekday 410x631 and portrait Sunday byte-identical to pre-change output.
   if command -v gs >/dev/null 2>&1; then
     local staged="${file%.pdf}-fit.pdf" scaled="${file%.pdf}-letter.pdf"
-    if gs -q -o "$staged" -sDEVICE=pdfwrite -dFIXEDMEDIA -dPDFFitPage \
+    local portrait="${file%.pdf}-portrait.pdf"
+    if python3 - "$file" "$portrait" <<'PYEOF' 2>/dev/null
+import sys
+from pypdf import PdfReader, PdfWriter
+src, dst = sys.argv[1], sys.argv[2]
+r = PdfReader(src)
+if not any(float(p.mediabox.width) > float(p.mediabox.height) for p in r.pages):
+    sys.exit(1)
+w = PdfWriter()
+for p in r.pages:
+    if float(p.mediabox.width) > float(p.mediabox.height):
+        p.rotate(90)
+        p.transfer_rotation_to_content()
+    w.add_page(p)
+with open(dst, 'wb') as f:
+    w.write(f)
+PYEOF
+    then
+      file="$portrait"
+      staged="${portrait%.pdf}-fit.pdf"; scaled="${portrait%.pdf}-letter.pdf"
+    fi
+    if gs -q -o "$staged" -sDEVICE=pdfwrite -dAutoRotatePages=/None -dFIXEDMEDIA -dPDFFitPage \
          -dDEVICEWIDTHPOINTS=575 -dDEVICEHEIGHTPOINTS=755 "$file" 2>/dev/null \
-       && gs -q -o "$scaled" -sDEVICE=pdfwrite -dFIXEDMEDIA \
+       && gs -q -o "$scaled" -sDEVICE=pdfwrite -dAutoRotatePages=/None -dFIXEDMEDIA \
             -dDEVICEWIDTHPOINTS=612 -dDEVICEHEIGHTPOINTS=792 \
             -c "<</PageOffset [18.5 18.5]>> setpagedevice" -f "$staged" 2>/dev/null \
        && [ -s "$scaled" ]; then
