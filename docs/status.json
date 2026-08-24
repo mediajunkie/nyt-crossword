@@ -3,10 +3,14 @@
   "rerun_step": null,
   "date": "2026-08-24",
   "fetch": {
-    "status": "error",
-    "at": "2026-08-24T13:30:06Z",
-    "error": "Cookie file not found at /Users/xian/Development/nyt-crossword/cookies.txt"
+    "status": "success",
+    "at": "2026-08-24T13:30:07Z",
+    "error": null,
+    "pdf_size": 46616,
+    "page_count": 1,
+    "puzzle_id": "24344"
   },
   "dow": 1,
-  "started_at": "2026-08-24T13:30:04Z"
+  "started_at": "2026-08-24T13:30:04Z",
+  "puzzle_type": "weekday"
 }
