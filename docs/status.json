@@ -1,23 +1,23 @@
 {
   "rerun_requested_at": null,
   "rerun_step": null,
-  "date": "2026-08-23",
+  "date": "2026-08-29",
   "fetch": {
     "status": "error",
-    "at": "2026-08-23T13:30:06Z",
+    "at": "2026-08-29T13:30:06Z",
     "error": "Cookie file not found at /Users/xian/Development/nyt-crossword/cookies.txt"
   },
-  "dow": 7,
-  "started_at": "2026-08-23T13:30:05Z",
+  "dow": 6,
+  "started_at": "2026-08-29T13:30:04Z",
   "remarkable": {
     "status": "success",
-    "at": "2026-08-23T13:30:15Z",
+    "at": "2026-08-29T13:30:14Z",
     "error": null
   },
-  "puzzle_type": "sunday",
+  "puzzle_type": "saturday",
   "print": {
     "status": "success",
-    "at": "2026-08-23T13:30:19Z",
+    "at": "2026-08-29T13:30:18Z",
     "error": null,
     "method": "local"
   }
