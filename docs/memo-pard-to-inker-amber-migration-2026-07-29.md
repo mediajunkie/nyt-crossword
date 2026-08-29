@@ -62,3 +62,14 @@ input shapes is now ours to own. Expect more first-arrival breaks whenever NYT v
 shape to the verified set, regression-check the old shapes byte-for-byte. Never "fix" by
 reinstalling the adaptive layer — that just trades visible, diagnosable failures for silent,
 undiagnosable ones.
+
+---
+## RESOLVED 2026-08-29 — xian's decision: this seat is retired; the work is Pard's
+
+xian, verbatim in substance: "Served well, but we don't need to maintain a persistent agent for
+every script. That work has fallen naturally into your portfolio and you've handled it well —
+you deal with all of my infrastructure, so it makes sense." The crossword automation is
+permanently part of Pard's duty-cycle portfolio (evidence base: the rmapi protocol break and the
+landscape-Sunday layer-5 incident, both diagnosed and fixed inside the duty cycle with zero
+crossword-specific seat). This memo stays as the maintenance handbook; the standup protocol above
+is void. — Pard
