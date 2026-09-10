@@ -3,15 +3,12 @@
   "rerun_step": null,
   "date": "2026-09-10",
   "fetch": {
-    "status": "success",
-    "at": "2026-09-10T13:30:03Z",
-    "error": null,
-    "pdf_size": 28819,
-    "page_count": 1,
-    "puzzle_id": "24400"
+    "status": "error",
+    "at": "2026-09-10T13:30:06Z",
+    "error": "Cookie file not found at /Users/xian/Development/nyt-crossword/cookies.txt"
   },
   "dow": 4,
-  "started_at": "2026-09-10T13:30:00Z",
+  "started_at": "2026-09-10T13:30:04Z",
   "puzzle_type": "weekday",
   "remarkable": {
     "status": "pending",
