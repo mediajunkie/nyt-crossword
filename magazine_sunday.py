@@ -230,8 +230,34 @@ def find_grid_bounds(img):
         print("WARNING: Could not find grid columns via density peaks")
         return None
 
-    col_left = int(peak_cols[0])
-    col_right = int(peak_cols[-1])
+    # 2026-09-13: take the largest CONTIGUOUS CLUSTER of peak columns, not the
+    # outermost extremes. Puzzle 24416's magazine layout carried a full-height
+    # vertical rule at col ~140 — one solid-black column, far left of the grid.
+    # peak_cols[0]/[-1] let that single stray column drag the left edge from
+    # ~1100 to 140; the resulting aspect (1.73) still cleared MAX_ASPECT=2.0,
+    # so the wide box was ACCEPTED and page 1 printed the grid at half size
+    # with the clues beside it. A real grid is a dense run of dark columns
+    # (a line every cell); page furniture is isolated. Cluster with a gap
+    # tolerance and keep the cluster containing the most peak columns — a
+    # lone rule can never outvote the grid.
+    gap_tol = max(20, grid_h // 8)  # cells are ~grid_h/21; allow a few cells
+    clusters = []
+    start = prev = int(peak_cols[0])
+    count = 1
+    for c in peak_cols[1:]:
+        c = int(c)
+        if c - prev > gap_tol:
+            clusters.append((start, prev, count))
+            start, count = c, 0
+        prev = c
+        count += 1
+    clusters.append((start, prev, count))
+    best = max(clusters, key=lambda t: t[2])
+    if len(clusters) > 1:
+        rejected = [(a, b, n) for (a, b, n) in clusters if (a, b, n) != best]
+        print(f"Column clusters: kept {best[0]}-{best[1]} ({best[2]} peaks); "
+              f"rejected {', '.join(f'{a}-{b} ({n})' for a, b, n in rejected)}")
+    col_left, col_right = best[0], best[1]
     col_center = (col_left + col_right) / 2
     col_w = col_right - col_left
 
