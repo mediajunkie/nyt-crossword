@@ -504,6 +504,36 @@ def create_clue_sheet(across_clues, down_clues, title="", blurb=""):
     return last_bytes
 
 
+def check_clue_coverage(across, down):
+    """Detect dropped or merged clues via the numbering invariant.
+
+    2026-09-13 (xian's report from the 09-06 puzzle): some clues were IMAGES,
+    which extract_text() silently drops — the clue's number then had no text,
+    and the parser merged it with the next clue. The workaround was manual.
+
+    The detector is stronger than looking for 'empty' clues, which the merge
+    erases: crossword numbering guarantees every integer 1..max starts an
+    ACROSS or DOWN entry, so a dropped/merged clue ALWAYS leaves a hole in
+    the union of parsed numbers. Returns the sorted list of missing numbers
+    (empty = clean).
+    """
+    nums = {n for n, _ in (across or [])} | {n for n, _ in (down or [])}
+    if not nums:
+        return []
+    return [n for n in range(1, max(nums) + 1) if n not in nums]
+
+
+def page_has_images(pdf_path):
+    """Corroborating signal: does the source page embed raster images
+    (XObject /Image)? Text-only puzzle pages normally don't."""
+    try:
+        page = PdfReader(pdf_path).pages[0]
+        xobjs = page.get('/Resources', {}).get('/XObject', {})
+        return any(x.get_object().get('/Subtype') == '/Image' for x in xobjs.values())
+    except Exception:
+        return False
+
+
 def combine_pdfs(grid_pdf_bytes, clue_pdf_bytes, output_path):
     """Combine the grid page and clue page into one PDF."""
     writer = PdfWriter()
@@ -551,6 +581,20 @@ def main():
     print("Cropping puzzle grid...")
     grid_pdf = crop_puzzle_grid(input_pdf)
 
+    # Image-clue safety net (see check_clue_coverage docstring): holes in the
+    # numbering mean clues were dropped/merged — most likely image clues the
+    # text layer can't carry. Never ship a silently incomplete clue sheet:
+    # warn with the exact numbers, and append the ORIGINAL page so the human
+    # has the pictures the pipeline couldn't.
+    missing = check_clue_coverage(across, down)
+    append_original = False
+    if missing:
+        imgs = page_has_images(input_pdf)
+        print(f"WARNING: clue numbers missing from parsed set: {missing} — "
+              f"clues were dropped or merged (image clues?{' page DOES embed raster images' if imgs else ' no raster images found — cause unclear'}). "
+              f"Appending the original page so nothing is lost.")
+        append_original = True
+
     # Create formatted clue sheet
     if across and down:
         print(f"Creating clue sheet (title: '{title}', blurb: {len(blurb)} chars)...")
@@ -560,6 +604,16 @@ def main():
     else:
         with open(output_pdf, 'wb') as f:
             f.write(grid_pdf)
+
+    if append_original:
+        writer = PdfWriter()
+        for p in PdfReader(output_pdf).pages:
+            writer.add_page(p)
+        writer.add_page(PdfReader(input_pdf).pages[0])
+        with open(output_pdf, 'wb') as f:
+            writer.write(f)
+        print(f"Appended original page — output is now {len(writer.pages)} pages "
+              f"(last page is the untouched source, for the clues we couldn't extract).")
 
     print("Done!")
 
