@@ -3,14 +3,11 @@
   "rerun_step": null,
   "date": "2026-09-26",
   "fetch": {
-    "status": "success",
+    "status": "pending",
     "at": "2026-09-26T13:30:04Z",
-    "error": null,
-    "pdf_size": 28780,
-    "page_count": 1,
-    "puzzle_id": "24472"
+    "error": null
   },
   "dow": 6,
-  "started_at": "2026-09-26T13:30:02Z",
+  "started_at": "2026-09-26T13:30:04Z",
   "puzzle_type": "saturday"
 }
