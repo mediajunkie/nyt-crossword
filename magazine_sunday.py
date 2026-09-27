@@ -46,29 +46,19 @@ def _extract_blurb(meta_text):
     return blurb
 
 
-# Clues for answers that wrap or reverse in the grid are emitted by the NYT PDF with
-# their two halves in the WRONG ORDER and each end marked by an ellipsis, e.g.
-#   '… in global commerce) (Conflict …'   for   'Conflict … in global commerce'
-# The result on the printed sheet is a run of short, unreadable fragments and visible
-# gaps in the clue columns -- xian flagged both on the 2026-09-27 puzzle, whose six
-# shaded "circle back" theme entries were ALL mangled this way (19, 28, 66, 73, 112,
-# 124) while every ordinary clue around them extracted cleanly.
-#
-# The shape is strict enough to invert safely: leading ellipsis, a ')' then '(' pivot,
-# trailing ellipsis. Anything that does not match that exactly is returned untouched,
-# so ordinary clues -- including ones that merely contain parentheses -- cannot be
-# rewritten by accident.
-_SPLIT_CLUE_RE = re.compile(r'^\s*[…]\s*(?P<second>.+?)\)\s*\(\s*(?P<first>.+?)\s*[…]\s*$')
-
-def _unwrap_split_clue(clue):
-    m = _SPLIT_CLUE_RE.match(clue)
-    if not m:
-        return clue
-    first = m.group('first').strip()
-    second = m.group('second').strip()
-    if not first or not second:
-        return clue
-    return f"{first} … {second}"
+# NOTE (2026-09-27), so nobody "fixes" this again: clues for the wrap-around theme
+# answers arrive looking mangled --
+#   '… in global commerce) (Conflict …'   for 19-Across
+# I wrote a normaliser that inverted them into 'Conflict … in global commerce', tested
+# it six-for-six, and it was WRONG. xian asked whether the split was intentional, and
+# rendering the source PDF's own clue column settles it: the NYT prints them exactly
+# that way, second half first --
+#   28   ... outdoor festivals)
+#        (Bathrooms at ...
+# It is the theme. The answers circle back, so the clues circle back: you read the
+# parenthesised half going out and the ellipsis half coming home. The extraction was
+# faithful and the "gaps" xian saw in the printed columns are the real typesetting.
+# DO NOT normalise these. Reproducing the source is the job.
 
 
 def extract_clues(pdf_path):
@@ -187,7 +177,6 @@ def extract_clues(pdf_path):
             else:
                 clues.append((num, clue))
 
-        clues = [(n, _unwrap_split_clue(c)) for n, c in clues]
         clues.sort(key=lambda x: x[0])
         seen = set()
         deduped = []
