@@ -46,6 +46,31 @@ def _extract_blurb(meta_text):
     return blurb
 
 
+# Clues for answers that wrap or reverse in the grid are emitted by the NYT PDF with
+# their two halves in the WRONG ORDER and each end marked by an ellipsis, e.g.
+#   '… in global commerce) (Conflict …'   for   'Conflict … in global commerce'
+# The result on the printed sheet is a run of short, unreadable fragments and visible
+# gaps in the clue columns -- xian flagged both on the 2026-09-27 puzzle, whose six
+# shaded "circle back" theme entries were ALL mangled this way (19, 28, 66, 73, 112,
+# 124) while every ordinary clue around them extracted cleanly.
+#
+# The shape is strict enough to invert safely: leading ellipsis, a ')' then '(' pivot,
+# trailing ellipsis. Anything that does not match that exactly is returned untouched,
+# so ordinary clues -- including ones that merely contain parentheses -- cannot be
+# rewritten by accident.
+_SPLIT_CLUE_RE = re.compile(r'^\s*[…]\s*(?P<second>.+?)\)\s*\(\s*(?P<first>.+?)\s*[…]\s*$')
+
+def _unwrap_split_clue(clue):
+    m = _SPLIT_CLUE_RE.match(clue)
+    if not m:
+        return clue
+    first = m.group('first').strip()
+    second = m.group('second').strip()
+    if not first or not second:
+        return clue
+    return f"{first} … {second}"
+
+
 def extract_clues(pdf_path):
     """Extract clue text from the PDF and parse into ACROSS and DOWN lists.
 
@@ -162,6 +187,7 @@ def extract_clues(pdf_path):
             else:
                 clues.append((num, clue))
 
+        clues = [(n, _unwrap_split_clue(c)) for n, c in clues]
         clues.sort(key=lambda x: x[0])
         seen = set()
         deduped = []
@@ -266,17 +292,33 @@ def find_grid_bounds(img):
     # Sundays can be tall (e.g. 15x21) or wide. An implausible aspect signals
     # a detection problem (e.g. dark clue text captured to the side), in which
     # case the reliable row extent defines a centered-square fallback.
-    MIN_ASPECT, MAX_ASPECT = 0.5, 2.0
+    # Window tightened 2026-09-27. NYT grids are rectangles of SQUARE cells, so the
+    # only shapes that actually occur are 15x15 and 21x21 (1.00), 15x21 (0.71) and
+    # 21x15 (1.40). The old 0.5-2.0 window accepted a crop twice as tall or twice as
+    # wide as any real grid, so it was not discriminating between "a grid" and "a grid
+    # plus a column of clue text". It had already failed once at 1.73 (see the note
+    # above, which recorded the miss without narrowing the window), and again on
+    # 2026-09-27 at 0.53 -- a 1456x2736 crop of a 21x21 puzzle, which xian noticed on
+    # the printed sheet. 0.62-1.60 brackets the real shapes with headroom.
+    MIN_ASPECT, MAX_ASPECT = 0.62, 1.60
     aspect = col_w / grid_h if grid_h > 0 else 0
     if MIN_ASPECT <= aspect <= MAX_ASPECT:
         left = col_left
         right = col_right
         print(f"Detected grid aspect={aspect:.2f} (accepted) — cols {left}-{right}")
     else:
-        half = grid_h / 2
-        left = max(0, int(col_center - half))
-        right = min(w, int(col_center + half))
-        print(f"Implausible aspect={aspect:.2f}; fell back to centered square {left}-{right} on col midpoint {col_center:.0f}")
+        # Square off the COLUMN width, not the row height. When these two disagree it
+        # is almost always the row extent that is wrong: the column cluster is found by
+        # peak separation and reports which candidates it rejected, whereas the row
+        # extent has nothing below the grid to stop it running on into the clue block.
+        # On 2026-09-27 cols gave 1430px (clean: 67 peaks kept, two clusters rejected)
+        # while rows gave 2736px, i.e. 84% of the page height for a grid occupying its
+        # top half. Squaring grid_h there would have produced a 2736x2736 crop -- wrong
+        # in the same direction, only larger.
+        left, right = col_left, col_right
+        bottom = min(h, top + col_w)
+        print(f"Implausible aspect={aspect:.2f}; squared off the column width instead "
+              f"— cols {left}-{right}, rows {top}-{bottom} (row extent {grid_h}px rejected)")
 
     # Add small padding
     pad = int(min(w, h) * 0.005)
