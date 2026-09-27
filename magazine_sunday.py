@@ -14,7 +14,8 @@ import re
 from pypdf import PdfReader, PdfWriter
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table,
+                                TableStyle, Image, BalancedColumns)
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_LEFT
 from reportlab.lib import colors
@@ -448,39 +449,33 @@ def _build_clue_sheet(across_clues, down_clues, title="", blurb="",
         elements.append(Paragraph(safe, blurb_style))
 
     def make_clue_table(clues, header_text):
+        """Flow the clues down independent columns.
+
+        WHY NOT A TABLE (fixed 2026-09-27). This used to chunk the clues into
+        num_cols equal-count lists and render row i as [col0[i], col1[i], col2[i]].
+        A reportlab Table row is as tall as its TALLEST cell, so a long clue in one
+        column pushed blank space into the others at the same index -- the clues were
+        coupled by nothing but their position in the list. On the 09-27 puzzle, clue 7
+        ("Shoot for dinner?", one line) sat opposite clue 49 (the five-line Coriolis
+        clue), so column 1 rendered one line of text and four lines of nothing. xian
+        reported it twice as "odd gaps between across clues 7 and 12"; I twice assumed
+        it was the source typesetting and did not look at my own output.
+
+        BalancedColumns flows the clues continuously and balances by height, so a long
+        clue lengthens only its own column, and it paginates properly -- which a
+        single-row table would not.
+        """
         elements.append(Paragraph(header_text, section_style))
-
-        n = len(clues)
-        rows_per_col = (n + num_cols - 1) // num_cols
-
-        columns = []
-        for c in range(num_cols):
-            start = c * rows_per_col
-            end = min(start + rows_per_col, n)
-            columns.append(clues[start:end])
-
-        table_data = []
-        for i in range(rows_per_col):
-            row = []
-            for c in range(num_cols):
-                if i < len(columns[c]):
-                    num, clue = columns[c][i]
-                    row.append(Paragraph(f"<b>{num}</b> {clue}", clue_style))
-                else:
-                    row.append("")
-            table_data.append(row)
-
-        cw = col_width * inch
-        table = Table(table_data, colWidths=[cw] * num_cols, repeatRows=0)
-        table.setStyle(TableStyle([
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('TOPPADDING', (0, 0), (-1, -1), 0.5),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 0.5),
-            ('LEFTPADDING', (0, 0), (-1, -1), 2),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
-            ('LINEAFTER', (0, 0), (num_cols - 2, -1), 0.5, colors.lightgrey),
-        ]))
-        elements.append(table)
+        flowables = [Paragraph(f"<b>{num}</b> {clue}", clue_style) for num, clue in clues]
+        elements.append(
+            BalancedColumns(
+                flowables,
+                nCols=num_cols,
+                needed=72,
+                innerPadding=6,
+                endSlack=0.2,
+            )
+        )
 
     make_clue_table(across_clues, "ACROSS")
     make_clue_table(down_clues, "DOWN")
