@@ -192,6 +192,10 @@ relay_upload() {
 
 scale_up_pdf() {
   local file="$1"
+  # Keep NYT's original before the raster step overwrites "$file" in place (10-08: on raster days the
+  # text layer was lost, so nothing could confirm the delivered puzzle was today's). Pard's cycle-check
+  # reads the date from this copy; the 14-day cleanup below removes it with everything else.
+  cp -p "$file" "${file%.pdf}-orig.pdf" 2>/dev/null || true
   python3 -c "
 from pypdf import PdfReader
 from pdf2image import convert_from_path
