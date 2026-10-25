@@ -3,15 +3,12 @@
   "rerun_step": null,
   "date": "2026-10-25",
   "fetch": {
-    "status": "success",
-    "at": "2026-10-25T13:30:03Z",
-    "error": null,
-    "pdf_size": 62684,
-    "page_count": 1,
-    "puzzle_id": "24560"
+    "status": "pending",
+    "at": "2026-10-25T13:30:05Z",
+    "error": null
   },
   "dow": 7,
-  "started_at": "2026-10-25T13:30:00Z",
+  "started_at": "2026-10-25T13:30:05Z",
   "puzzle_type": "sunday-magazine",
   "remarkable": {
     "status": "pending",
