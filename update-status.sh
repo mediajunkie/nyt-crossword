@@ -151,17 +151,27 @@ fi
 # --- Push to GitHub ---
 CONTENT=$(echo "$JSON" | base64)
 
+# Ledger of this machine's own status commits (2026-10-26). From 07-28 to 10-26 a second machine
+# (faoilean, its July LaunchAgents never removed) wrote "Cookie file not found" over Amber's good run
+# every morning, and nothing noticed for three months. Pard's cycle-check now fails on any status.json
+# commit that is not in this ledger (GitHub's own rerun button excepted). Another machine cannot write
+# here, whatever version of this script it runs. A failed push records nothing.
+LEDGER="$HOME/.config/nyt-crossword/status-writes.log"
+
 if [[ -n "$SHA" ]]; then
-  gh api "repos/$REPO/contents/$FILE_PATH" \
+  NEW_SHA=$(gh api "repos/$REPO/contents/$FILE_PATH" \
     --method PUT \
     -f message="status: ${STEP:-$STATUS} for $DATE" \
     -f content="$CONTENT" \
     -f sha="$SHA" \
-    --silent
+    --jq '.commit.sha')
 else
-  gh api "repos/$REPO/contents/$FILE_PATH" \
+  NEW_SHA=$(gh api "repos/$REPO/contents/$FILE_PATH" \
     --method PUT \
     -f message="status: ${STEP:-$STATUS} for $DATE" \
     -f content="$CONTENT" \
-    --silent
+    --jq '.commit.sha')
 fi
+rc=$?
+[[ -n "$NEW_SHA" ]] && printf '%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$NEW_SHA" "${STEP:-$STATUS}" >> "$LEDGER"
+exit $rc

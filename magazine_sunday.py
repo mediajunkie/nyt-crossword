@@ -91,6 +91,10 @@ def _drop_kerning(obj, reader, seen=None):
         _drop_kerning(x, reader, seen)
 
 
+# The clue text exactly as the parser received it, for the read-back (see read_back).
+LAST_SECTIONS = {'across': '', 'down': ''}
+
+
 def extract_clues(pdf_path):
     """Extract clue text from the PDF and parse into ACROSS and DOWN lists.
 
@@ -171,6 +175,7 @@ def extract_clues(pdf_path):
         flags=re.DOTALL)
     blurb = _extract_blurb('\n'.join(meta_re.findall(down_text)))
     down_text = meta_re.sub(' ', down_text)
+    LAST_SECTIONS['across'], LAST_SECTIONS['down'] = across_text, down_text
 
     def parse_clues(clue_text):
         """Parse numbered clues from text, handling multi-column PDF extraction."""
@@ -273,6 +278,38 @@ def mark_up_clue(clue, spans):
         # occurrence: 10-18 65-Across is "This" set twice in italics.
         out = re.sub(rf'(?<![\w>]){re.escape(p)}(?![\w<])', lambda m: f"<{style}>{m.group(0)}</{style}>", out)
     return out
+
+
+# Read-back (2026-10-26, agreed with xian: "after each Sunday conversion, the clue sheet gets read
+# against the source PDF before it's trusted"). Read the finished clue sheet's text back and compare it
+# with the source's clue text, as one stream per section of letters and digits only, in order. Spacing,
+# punctuation and markup drop out; what remains catches a clue cut short, a phantom clue (its number
+# lands out of place after the sort), a dropped clue, or text moved between clues. It cannot see lost
+# italics. A mismatch appends the original page, as missing clues do, so the printout is never wrong
+# without the source beside it.
+def _letters(s):
+    return re.sub(r'[^0-9a-z]', '', s.lower())
+
+
+def read_back(clue_pdf_bytes):
+    from io import BytesIO as _B
+    reader = PdfReader(_B(clue_pdf_bytes))
+    sheet = '\n'.join(p.extract_text() for p in reader.pages)
+    heads = [m.start() for m in re.finditer(r'(?m)^\s*ACROSS\s*$', sheet)]
+    downs = [m.start() for m in re.finditer(r'(?m)^\s*DOWN\s*$', sheet)]
+    if not heads or not downs:
+        return [f"sheet headers not found (ACROSS {len(heads)}, DOWN {len(downs)})"]
+    a0, d0 = heads[0], [d for d in downs if d > heads[0]][0]
+    got = {'across': _letters(sheet[a0 + len('ACROSS') + 1:d0]), 'down': _letters(sheet[d0 + len('DOWN') + 1:])}
+    problems = []
+    for side in ('across', 'down'):
+        want = _letters(LAST_SECTIONS[side])
+        if got[side] != want:
+            k = next((i for i in range(min(len(want), len(got[side]))) if want[i] != got[side][i]),
+                     min(len(want), len(got[side])))
+            problems.append(f"{side}: differs at char {k} of {len(want)}: "
+                            f"source '...{want[max(0, k - 25):k + 25]}...' vs sheet '...{got[side][max(0, k - 25):k + 25]}...'")
+    return problems
 
 
 def find_grid_bounds(img):
@@ -713,6 +750,15 @@ def main():
     if across and down:
         print(f"Creating clue sheet (title: '{title}', blurb: {len(blurb)} chars)...")
         clue_pdf = create_clue_sheet(across, down, title=title, blurb=blurb)
+        problems = read_back(clue_pdf)
+        if problems:
+            for pr in problems:
+                print(f"READBACK: MISMATCH {pr}")
+            print("READBACK: appending the original page so the source is printed beside the sheet.")
+            append_original = True
+        else:
+            print(f"READBACK: OK (across {len(_letters(LAST_SECTIONS['across']))} chars, "
+                  f"down {len(_letters(LAST_SECTIONS['down']))} chars match the source)")
         print("Combining grid + clue sheet...")
         combine_pdfs(grid_pdf, clue_pdf, output_pdf)
     else:
