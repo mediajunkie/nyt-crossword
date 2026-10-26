@@ -62,6 +62,35 @@ def _extract_blurb(meta_text):
 # DO NOT normalise these. Reproducing the source is the job.
 
 
+# NOTE (2026-10-26): stray spaces inside words ("N.F .L.", "Y om Kippur", "RELA TIVEL Y") are pypdf's,
+# not ours. In a TJ array a POSITIVE number tightens the next glyph (kerning) and a NEGATIVE one opens a
+# gap, but pypdf inserts a space when abs(number) passes half a space width, so strong kerning pairs like
+# "Yo", "F." and "AT" read as word breaks (pypdf 6.14 _page.py, the TJ branch). The NYT magazine page draws
+# everything inside a form XObject, so before extracting we zero the positive numbers there, in memory
+# only: the grid image is rendered from the untouched file. Checked on 10-25: every change it made to the
+# extracted text was a repair, none a false join.
+def _drop_kerning(obj, reader, seen=None):
+    from pypdf.generic import ContentStream, ArrayObject, FloatObject, NumberObject
+    seen = set() if seen is None else seen
+    res = obj.get("/Resources")
+    xobjects = res.get_object().get("/XObject") if res is not None else None
+    if not xobjects:
+        return
+    for ref in xobjects.get_object().values():
+        x = ref.get_object()
+        if x.get("/Subtype") != "/Form" or id(x) in seen:
+            continue
+        seen.add(id(x))
+        cs = ContentStream(x, reader)
+        for ops, op in cs.operations:
+            if op == b"TJ" and ops:
+                ops[0] = ArrayObject(
+                    FloatObject(0) if isinstance(v, (FloatObject, NumberObject)) and float(v) > 0 else v
+                    for v in ops[0])
+        x.set_data(cs.get_data())
+        _drop_kerning(x, reader, seen)
+
+
 def extract_clues(pdf_path):
     """Extract clue text from the PDF and parse into ACROSS and DOWN lists.
 
@@ -70,6 +99,7 @@ def extract_clues(pdf_path):
     followed by numbered clues, not just the first occurrence.
     """
     reader = PdfReader(pdf_path)
+    _drop_kerning(reader.pages[0], reader)
     text = reader.pages[0].extract_text()
 
     # Find ALL occurrences of ACROSS and DOWN, then pick the ones that
@@ -146,6 +176,16 @@ def extract_clues(pdf_path):
         """Parse numbered clues from text, handling multi-column PDF extraction."""
         clues = []
         boundaries = list(re.finditer(r'(?:^|\n)\s*(\d{1,3})\s+', clue_text))
+        # A wrapped clue can put a numeral at the start of a line: 10-25 109-Across, "Delaware vis-a-vis
+        # the other / 12 colonies?", printed as 109 "...the other" plus a phantom 12. Treat a line-start
+        # number as wrapped text only when it is a single dip: below the clue before it, with the next
+        # line-start number back above that clue. A column read out of order dips and keeps climbing
+        # from there (60, 1, 2, 3 ...), so it is left alone for the sort below.
+        nums = [int(m.group(1)) for m in boundaries]
+        keep = [k for k in range(len(boundaries))
+                if not (0 < k < len(boundaries) - 1 and nums[k] < nums[k - 1] < nums[k + 1])]
+        boundaries = [boundaries[k] for k in keep]
+        line_nums = [int(m.group(1)) for m in boundaries]
 
         for i, match in enumerate(boundaries):
             num = int(match.group(1))
@@ -162,21 +202,26 @@ def extract_clues(pdf_path):
             if re.match(r'^[\d\s]+$', clue):
                 continue
 
-            # Handle cases where multiple clues got merged on one line
+            # Handle cases where multiple clues got merged on one line.
+            # A number inside a clue is only a merged clue's number if it fits the sequence: above
+            # the clue it follows and below the next clue that starts its own line. 10-25 85-Down,
+            # "Any of 17 Monopoly spaces: Abbr.", was cut at "17", and the tail then displaced the
+            # real 17-Down in the dedupe below: two clues lost to one numeral.
+            upper = line_nums[i + 1] if i + 1 < len(line_nums) else float('inf')
             parts = re.split(r'\s+(\d{1,3})\s+(?=[A-Z"\'\(_])', clue)
-            if len(parts) > 1:
-                first_clue = parts[0].strip()
-                if first_clue and not re.match(r'^[\d\s]+$', first_clue):
-                    clues.append((num, first_clue))
-                j = 1
-                while j < len(parts) - 1:
-                    sub_num = int(parts[j])
-                    sub_clue = parts[j + 1].strip()
-                    if sub_clue and not re.match(r'^[\d\s]+$', sub_clue):
-                        clues.append((sub_num, sub_clue))
-                    j += 2
-            else:
-                clues.append((num, clue))
+            cur_num, cur_text = num, parts[0]
+            j = 1
+            while j < len(parts) - 1:
+                sub_num = int(parts[j])
+                if cur_num < sub_num < upper:
+                    if cur_text.strip() and not re.match(r'^[\d\s]+$', cur_text.strip()):
+                        clues.append((cur_num, cur_text.strip()))
+                    cur_num, cur_text = sub_num, parts[j + 1]
+                else:
+                    cur_text = f"{cur_text} {parts[j]} {parts[j + 1]}"
+                j += 2
+            if cur_text.strip() and not re.match(r'^[\d\s]+$', cur_text.strip()):
+                clues.append((cur_num, cur_text.strip()))
 
         clues.sort(key=lambda x: x[0])
         seen = set()
@@ -191,6 +236,43 @@ def extract_clues(pdf_path):
     down_clues = parse_clues(down_text)
 
     return across_clues, down_clues, title, blurb
+
+
+# Formatting (2026-10-26, xian: "Italics, boldface and other formatting that may be relevant to the clue
+# get stripped"). The text layer drops fonts, but pypdf's visitor reports each piece of text with its font.
+# Clue text is set in NYT Cheltenham; its Italic and Bold cuts carry meaning (a fully italic theme clue,
+# a title). Collect those pieces, then re-mark them in the parsed clue as <i>/<b> for reportlab. The clue
+# numbers are Franklin Bold and are left out (the sheet bolds numbers itself).
+def extract_styled_spans(pdf_path):
+    reader = PdfReader(pdf_path)
+    page = reader.pages[0]
+    _drop_kerning(page, reader)
+    spans = []
+
+    def visit(text, cm, tm, font_dict, font_size):
+        font = str((font_dict or {}).get("/BaseFont", ""))
+        if "Cheltenham" not in font:
+            return
+        style = "i" if "Italic" in font else ("b" if "Bold" in font else None)
+        piece = re.sub(r'\s+', ' ', text).strip()
+        if style and len(piece) >= 2:
+            spans.append((style, piece))
+
+    page.extract_text(visitor_text=visit)
+    return spans
+
+
+def mark_up_clue(clue, spans):
+    """Escape a clue for reportlab and wrap its italic/bold stretches in <i>/<b>."""
+    def esc(s):
+        return s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    out = esc(clue)
+    for style, piece in sorted(set(spans), key=lambda s: -len(s[1])):
+        p = esc(piece)
+        # Whole words only: a short italic piece ("Here") must not match inside "Hereford". Every
+        # occurrence: 10-18 65-Across is "This" set twice in italics.
+        out = re.sub(rf'(?<![\w>]){re.escape(p)}(?![\w<])', lambda m: f"<{style}>{m.group(0)}</{style}>", out)
+    return out
 
 
 def find_grid_bounds(img):
@@ -592,6 +674,12 @@ def main():
     # Extract clues
     print("Extracting clues...")
     across, down, title, blurb = extract_clues(input_pdf)
+    spans = extract_styled_spans(input_pdf)
+    marked = [(n, c) for n, c in across + down if mark_up_clue(c, spans) != mark_up_clue(c, [])]
+    across = [(n, mark_up_clue(c, spans)) for n, c in across]
+    down = [(n, mark_up_clue(c, spans)) for n, c in down]
+    if marked:
+        print(f"  Formatting kept on {len(marked)} clue(s): {', '.join(str(n) for n, _ in marked)}")
     if title_override:
         title = title_override
     if across:
