@@ -1,27 +1,12 @@
 {
   "rerun_requested_at": null,
   "rerun_step": null,
-  "date": "2026-11-01",
+  "date": "2026-11-02",
   "fetch": {
-    "status": "success",
-    "at": "2026-11-01T14:30:08Z",
-    "error": null,
-    "pdf_size": 60633,
-    "page_count": 1,
-    "puzzle_id": "24571"
-  },
-  "dow": 7,
-  "started_at": "2026-11-01T14:30:04Z",
-  "puzzle_type": "sunday-magazine",
-  "remarkable": {
-    "status": "success",
-    "at": "2026-11-01T14:30:17Z",
+    "status": "pending",
+    "at": "2026-11-02T14:30:03Z",
     "error": null
   },
-  "print": {
-    "status": "success",
-    "at": "2026-11-01T14:30:52Z",
-    "error": null,
-    "method": "local"
-  }
+  "dow": 1,
+  "started_at": "2026-11-02T14:30:03Z"
 }
