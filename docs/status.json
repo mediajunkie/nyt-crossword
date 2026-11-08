@@ -12,5 +12,10 @@
   },
   "dow": 7,
   "started_at": "2026-11-08T14:30:03Z",
-  "puzzle_type": "sunday-magazine"
+  "puzzle_type": "sunday-magazine",
+  "remarkable": {
+    "status": "pending",
+    "at": "2026-11-08T14:30:08Z",
+    "error": null
+  }
 }
