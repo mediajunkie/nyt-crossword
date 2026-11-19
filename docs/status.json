@@ -1,27 +1,12 @@
 {
   "rerun_requested_at": null,
   "rerun_step": null,
-  "date": "2026-11-18",
+  "date": "2026-11-19",
   "fetch": {
-    "status": "success",
-    "at": "2026-11-18T14:30:06Z",
-    "error": null,
-    "pdf_size": 29190,
-    "page_count": 1,
-    "puzzle_id": "24647"
-  },
-  "dow": 3,
-  "started_at": "2026-11-18T14:30:04Z",
-  "puzzle_type": "weekday",
-  "remarkable": {
-    "status": "success",
-    "at": "2026-11-18T14:30:15Z",
+    "status": "pending",
+    "at": "2026-11-19T14:30:04Z",
     "error": null
   },
-  "print": {
-    "status": "success",
-    "at": "2026-11-18T14:30:20Z",
-    "error": null,
-    "method": "local"
-  }
+  "dow": 4,
+  "started_at": "2026-11-19T14:30:04Z"
 }
