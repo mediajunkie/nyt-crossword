@@ -19,8 +19,9 @@
     "error": null
   },
   "print": {
-    "status": "pending",
-    "at": "2026-11-20T14:30:11Z",
-    "error": null
+    "status": "success",
+    "at": "2026-11-20T14:30:14Z",
+    "error": null,
+    "method": "local"
   }
 }
