@@ -17,5 +17,10 @@
     "status": "success",
     "at": "2026-11-20T14:30:10Z",
     "error": null
+  },
+  "print": {
+    "status": "pending",
+    "at": "2026-11-20T14:30:11Z",
+    "error": null
   }
 }
