@@ -3,10 +3,14 @@
   "rerun_step": null,
   "date": "2026-11-22",
   "fetch": {
-    "status": "pending",
-    "at": "2026-11-22T14:30:01Z",
-    "error": null
+    "status": "success",
+    "at": "2026-11-22T14:30:04Z",
+    "error": null,
+    "pdf_size": 60444,
+    "page_count": 1,
+    "puzzle_id": "24654"
   },
   "dow": 7,
-  "started_at": "2026-11-22T14:30:01Z"
+  "started_at": "2026-11-22T14:30:01Z",
+  "puzzle_type": "sunday-magazine"
 }
