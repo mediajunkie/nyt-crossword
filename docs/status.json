@@ -14,8 +14,8 @@
   "started_at": "2026-11-27T14:30:00Z",
   "puzzle_type": "weekday",
   "remarkable": {
-    "status": "pending",
-    "at": "2026-11-27T14:30:06Z",
+    "status": "success",
+    "at": "2026-11-27T14:30:17Z",
     "error": null
   }
 }
